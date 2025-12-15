@@ -164,6 +164,8 @@ onMounted(async () => {
 
   socket.on('connect', () => {
     console.log('Public vote socket connected')
+    // 报告大众评委上线
+    socket.emit('publicVoterOnline')
   })
 
   // 监听排名更新，从中提取大众评分数据

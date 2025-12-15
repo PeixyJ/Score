@@ -481,13 +481,172 @@
           </table>
         </div>
       </div>
+
+      <!-- 评分详情 -->
+      <div v-if="activeTab === 'scoreDetails'" class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold">评分详情</h2>
+          <button
+            @click="fetchScoreDetails"
+            :disabled="loadingScoreDetails"
+            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300"
+          >
+            {{ loadingScoreDetails ? '加载中...' : '刷新数据' }}
+          </button>
+        </div>
+
+        <!-- 赛道筛选 -->
+        <div class="flex space-x-2 mb-4">
+          <button
+            @click="scoreDetailsTrackFilter = ''"
+            :class="[
+              'px-3 py-1 rounded-full text-sm',
+              scoreDetailsTrackFilter === '' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
+            ]"
+          >
+            全部
+          </button>
+          <button
+            @click="scoreDetailsTrackFilter = 'A'"
+            :class="[
+              'px-3 py-1 rounded-full text-sm',
+              scoreDetailsTrackFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
+            ]"
+          >
+            A赛道
+          </button>
+          <button
+            @click="scoreDetailsTrackFilter = 'B'"
+            :class="[
+              'px-3 py-1 rounded-full text-sm',
+              scoreDetailsTrackFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
+            ]"
+          >
+            B赛道
+          </button>
+        </div>
+
+        <!-- 评分者图例 -->
+        <div v-if="scoreDetails.judges.length > 0" class="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+          <span class="text-sm font-medium text-gray-700">评委列表:</span>
+          <span
+            v-for="judge in scoreDetails.judges"
+            :key="judge.id"
+            class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
+          >
+            {{ judge.name }}
+          </span>
+        </div>
+
+        <!-- 加载中 -->
+        <div v-if="loadingScoreDetails" class="text-center py-8 text-gray-500">
+          加载中...
+        </div>
+
+        <!-- 空数据 -->
+        <div v-else-if="filteredScoreDetails.length === 0" class="text-center py-8 text-gray-500">
+          暂无评分数据
+        </div>
+
+        <!-- 评分表格 -->
+        <div v-else class="space-y-6">
+          <div
+            v-for="contestant in filteredScoreDetails"
+            :key="contestant.id"
+            class="border rounded-lg overflow-hidden"
+          >
+            <!-- 选手标题 -->
+            <div
+              :class="[
+                'px-4 py-3 flex items-center justify-between',
+                contestant.track === 'A' ? 'bg-orange-50' : 'bg-purple-50'
+              ]"
+            >
+              <div class="flex items-center gap-3">
+                <span
+                  :class="[
+                    'px-2 py-1 rounded text-xs font-bold',
+                    contestant.track === 'A' ? 'bg-orange-500 text-white' : 'bg-purple-500 text-white'
+                  ]"
+                >
+                  {{ contestant.track }}
+                </span>
+                <span class="font-semibold text-gray-800">{{ contestant.name }}</span>
+              </div>
+              <div class="text-sm text-gray-500">
+                {{ contestant.judges.filter(j => j.hasScored).length }} / {{ contestant.judges.length }} 位评委已评分
+              </div>
+            </div>
+
+            <!-- 评分详情表格 -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                  <tr>
+                    <th class="px-4 py-2 text-left font-medium text-gray-600 w-32">评委</th>
+                    <th class="px-4 py-2 text-left font-medium text-gray-600">各维度评分</th>
+                    <th class="px-4 py-2 text-center font-medium text-gray-600 w-24">总分</th>
+                    <th class="px-4 py-2 text-center font-medium text-gray-600 w-20">状态</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr
+                    v-for="judge in contestant.judges"
+                    :key="judge.judge_id"
+                    :class="judge.hasScored ? '' : 'bg-gray-50'"
+                  >
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ judge.judge_name }}</td>
+                    <td class="px-4 py-3">
+                      <div v-if="judge.hasScored" class="flex flex-wrap gap-2">
+                        <span
+                          v-for="score in judge.scores"
+                          :key="score.dimension_id"
+                          class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"
+                        >
+                          <span class="text-gray-500">{{ score.dimension_name }}:</span>
+                          <span class="font-semibold">{{ score.score }}</span>
+                          <span class="text-gray-400">/{{ score.max_score }}</span>
+                        </span>
+                      </div>
+                      <span v-else class="text-gray-400">-</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <span
+                        v-if="judge.hasScored"
+                        class="font-bold text-blue-600"
+                      >
+                        {{ judge.total.toFixed(1) }}
+                      </span>
+                      <span v-else class="text-gray-400">-</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <span
+                        v-if="judge.hasScored"
+                        class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full"
+                      >
+                        已评分
+                      </span>
+                      <span
+                        v-else
+                        class="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-full"
+                      >
+                        未评分
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
       </main>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useScoreStore } from '../stores/score'
 import axios from 'axios'
 
@@ -539,7 +698,8 @@ function logout() {
 const tabs = [
   { key: 'judges', label: '评分者管理' },
   { key: 'contestants', label: '被评分者管理' },
-  { key: 'dimensions', label: '评分维度' }
+  { key: 'dimensions', label: '评分维度' },
+  { key: 'scoreDetails', label: '评分详情' }
 ]
 
 const activeTab = ref('judges')
@@ -563,6 +723,11 @@ const newDimension = ref({
   weight: 1.0
 })
 
+// 评分详情相关
+const scoreDetails = ref({ judges: [], dimensions: [], contestants: [] })
+const scoreDetailsTrackFilter = ref('')
+const loadingScoreDetails = ref(false)
+
 const filteredContestants = computed(() => {
   if (!contestantFilter.value) return store.contestants
   return store.contestants.filter(c => c.track === contestantFilter.value)
@@ -571,6 +736,11 @@ const filteredContestants = computed(() => {
 const filteredDimensions = computed(() => {
   if (!dimensionFilter.value) return store.dimensions
   return store.dimensions.filter(d => d.track === dimensionFilter.value)
+})
+
+const filteredScoreDetails = computed(() => {
+  if (!scoreDetailsTrackFilter.value) return scoreDetails.value.contestants
+  return scoreDetails.value.contestants.filter(c => c.track === scoreDetailsTrackFilter.value)
 })
 
 // 评分者操作
@@ -693,8 +863,32 @@ async function clearAllScores() {
   try {
     await axios.delete('/api/scores/clear-all')
     alert('已清空所有评分')
+    // 刷新评分详情
+    if (activeTab.value === 'scoreDetails') {
+      await fetchScoreDetails()
+    }
   } catch (err) {
     alert('清空失败：' + err.message)
   }
 }
+
+// 获取评分详情
+async function fetchScoreDetails() {
+  loadingScoreDetails.value = true
+  try {
+    const res = await axios.get('/api/scores/details')
+    scoreDetails.value = res.data
+  } catch (err) {
+    console.error('获取评分详情失败:', err)
+  } finally {
+    loadingScoreDetails.value = false
+  }
+}
+
+// 监听Tab切换，自动加载评分详情
+watch(activeTab, async (newTab) => {
+  if (newTab === 'scoreDetails' && scoreDetails.value.contestants.length === 0) {
+    await fetchScoreDetails()
+  }
+})
 </script>

@@ -300,6 +300,8 @@ async function login() {
   } else {
     // 登录成功后加载评分记录
     await loadAllMyScores()
+    // 报告评委上线
+    store.reportJudgeOnline()
   }
 }
 

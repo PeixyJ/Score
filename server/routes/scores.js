@@ -169,6 +169,86 @@ function calculateRankings(filterTrack = null) {
   return result;
 }
 
+// 获取所有评分详情（管理端用）
+router.get('/details', (req, res) => {
+  try {
+    // 获取所有评委
+    const judges = prepare('SELECT id, name FROM judges ORDER BY id').all();
+
+    // 获取所有选手（按赛道和序号排序）
+    const contestants = prepare('SELECT id, name, track, order_num FROM contestants ORDER BY track, order_num, id').all();
+
+    // 获取所有维度
+    const dimensions = prepare('SELECT id, name, track, max_score FROM dimensions ORDER BY track, order_num, id').all();
+
+    // 获取所有评分记录
+    const allScores = prepare(`
+      SELECT s.judge_id, s.contestant_id, s.dimension_id, s.score, s.is_anonymous,
+             j.name as judge_name, c.name as contestant_name, c.track,
+             d.name as dimension_name, d.max_score
+      FROM scores s
+      LEFT JOIN judges j ON s.judge_id = j.id
+      LEFT JOIN contestants c ON s.contestant_id = c.id
+      LEFT JOIN dimensions d ON s.dimension_id = d.id
+      ORDER BY c.track, c.order_num, j.id, d.order_num
+    `).all();
+
+    // 整理数据结构：按选手分组，每个选手下按评委分组
+    const scoresByContestant = {};
+
+    for (const contestant of contestants) {
+      scoresByContestant[contestant.id] = {
+        id: contestant.id,
+        name: contestant.name,
+        track: contestant.track,
+        judges: {}
+      };
+
+      // 初始化每个评委的评分结构
+      for (const judge of judges) {
+        scoresByContestant[contestant.id].judges[judge.id] = {
+          judge_id: judge.id,
+          judge_name: judge.name,
+          scores: [],
+          total: 0,
+          hasScored: false
+        };
+      }
+    }
+
+    // 填充评分数据
+    for (const score of allScores) {
+      if (scoresByContestant[score.contestant_id] &&
+          scoresByContestant[score.contestant_id].judges[score.judge_id]) {
+        const judgeData = scoresByContestant[score.contestant_id].judges[score.judge_id];
+        judgeData.scores.push({
+          dimension_id: score.dimension_id,
+          dimension_name: score.dimension_name,
+          score: score.score,
+          max_score: score.max_score,
+          is_anonymous: score.is_anonymous
+        });
+        judgeData.total += score.score;
+        judgeData.hasScored = true;
+      }
+    }
+
+    // 转换为数组格式
+    const result = Object.values(scoresByContestant).map(contestant => ({
+      ...contestant,
+      judges: Object.values(contestant.judges)
+    }));
+
+    res.json({
+      judges,
+      dimensions,
+      contestants: result
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 清空所有评分
 router.delete('/clear-all', (req, res) => {
   try {

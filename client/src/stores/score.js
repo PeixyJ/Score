@@ -10,6 +10,7 @@ export const useScoreStore = defineStore('score', () => {
   const dimensions = ref([])
   const judges = ref([])
   const currentJudge = ref(null)
+  const onlineStatus = ref({ judges: [], publicVoterCount: 0 })
 
   // 初始化 Socket 连接
   function initSocket() {
@@ -24,11 +25,41 @@ export const useScoreStore = defineStore('score', () => {
     socket.value.on('connect', () => {
       console.log('Socket connected')
       socket.value.emit('getRankings')
+      socket.value.emit('getOnlineStatus')
+
+      // 如果已登录，报告评委上线
+      if (currentJudge.value) {
+        socket.value.emit('judgeOnline', {
+          id: currentJudge.value.id,
+          name: currentJudge.value.name
+        })
+      }
     })
 
     socket.value.on('rankings', (data) => {
       rankings.value = data
     })
+
+    socket.value.on('onlineStatus', (data) => {
+      onlineStatus.value = data
+    })
+  }
+
+  // 报告评委上线
+  function reportJudgeOnline() {
+    if (socket.value && currentJudge.value) {
+      socket.value.emit('judgeOnline', {
+        id: currentJudge.value.id,
+        name: currentJudge.value.name
+      })
+    }
+  }
+
+  // 报告评委下线
+  function reportJudgeOffline() {
+    if (socket.value) {
+      socket.value.emit('judgeOffline')
+    }
   }
 
   // 获取排名数据
@@ -85,6 +116,7 @@ export const useScoreStore = defineStore('score', () => {
 
   // 退出登录
   function logout() {
+    reportJudgeOffline()
     currentJudge.value = null
     localStorage.removeItem('judgeKey')
   }
@@ -113,6 +145,7 @@ export const useScoreStore = defineStore('score', () => {
     dimensions,
     judges,
     currentJudge,
+    onlineStatus,
     initSocket,
     requestRankings,
     notifyScoreUpdate,
@@ -123,6 +156,8 @@ export const useScoreStore = defineStore('score', () => {
     restoreLogin,
     logout,
     submitScore,
-    getMyScores
+    getMyScores,
+    reportJudgeOnline,
+    reportJudgeOffline
   }
 })

@@ -19,13 +19,62 @@
     <!-- 内容层 -->
     <div class="relative z-10">
     <!-- 标题 -->
-    <header class="text-center mb-6">
+    <header class="text-center mb-4">
       <h1 class="text-4xl font-bold mb-1">实时评分排行榜</h1>
       <p class="text-blue-300">分数实时更新中...</p>
     </header>
 
+    <!-- 在线状态面板 -->
+    <div class="flex justify-center items-center gap-6 mb-4">
+      <!-- 评委在线状态 -->
+      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-2 flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="text-sm text-gray-300">评委在线:</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <template v-if="store.onlineStatus.judges.length > 0">
+            <span
+              v-for="judge in store.onlineStatus.judges"
+              :key="judge.id"
+              class="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30"
+            >
+              <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              {{ judge.name }}
+            </span>
+          </template>
+          <span v-else class="text-gray-500 text-sm">暂无</span>
+        </div>
+      </div>
+
+      <!-- 大众评委在线数 -->
+      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-2 flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          <span class="text-sm text-gray-300">大众评委:</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span
+            :class="[
+              'inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-bold',
+              store.onlineStatus.publicVoterCount > 0
+                ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
+                : 'bg-gray-500/20 text-gray-500'
+            ]"
+          >
+            <span v-if="store.onlineStatus.publicVoterCount > 0" class="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></span>
+            {{ store.onlineStatus.publicVoterCount }} 人在线
+          </span>
+        </div>
+      </div>
+    </div>
+
     <!-- 主体内容：左右两列布局 -->
-    <div class="max-w-full mx-auto grid grid-cols-12 gap-6" style="height: calc(100vh - 140px);">
+    <div class="max-w-full mx-auto grid grid-cols-12 gap-6" style="height: calc(100vh - 200px);">
       <!-- 左侧：TOP 3 展示 -->
       <div class="col-span-4 flex flex-col gap-4 overflow-hidden">
         <!-- A赛道获奖 -->
@@ -311,6 +360,24 @@ const allJudges = computed(() => {
   return store.rankings['A']?.judges || store.rankings['B']?.judges || []
 })
 
+// 上一次在线评委数量（用于检测变化）
+let previousOnlineJudgeCount = 0
+
+// 监听在线状态变化
+watch(() => store.onlineStatus, (newStatus, oldStatus) => {
+  if (!oldStatus) {
+    previousOnlineJudgeCount = newStatus.judges?.length || 0
+    return
+  }
+
+  const newCount = newStatus.judges?.length || 0
+  // 有新评委上线时播放音效
+  if (newCount > previousOnlineJudgeCount) {
+    playJudgeOnlineSound()
+  }
+  previousOnlineJudgeCount = newCount
+}, { deep: true })
+
 // 监听排名变化
 watch(allContestants, (newList, oldList) => {
   if (!oldList || oldList.length === 0) {
@@ -465,6 +532,13 @@ function playCelebrationSound() {
   })
 }
 
+// 评委上线音效
+function playJudgeOnlineSound() {
+  if (!soundEnabled.value) return
+  playTone(587, 0.1, 'sine', 0.2)  // D5
+  setTimeout(() => playTone(880, 0.15, 'sine', 0.25), 100) // A5
+}
+
 // 切换音效开关
 function toggleSound() {
   soundEnabled.value = !soundEnabled.value
@@ -530,9 +604,12 @@ onMounted(() => {
   // 初始化 Socket 连接
   store.initSocket()
 
-  // 每3秒刷新排名
+  // 每3秒刷新排名和在线状态
   refreshInterval = setInterval(() => {
     store.requestRankings()
+    if (store.socket) {
+      store.socket.emit('getOnlineStatus')
+    }
   }, 3000)
 })
 
