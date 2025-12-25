@@ -232,9 +232,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useScoreStore } from '../stores/score'
 import axios from 'axios'
 
+const route = useRoute()
 const store = useScoreStore()
 
 const secretKey = ref('')
@@ -294,6 +296,13 @@ onMounted(async () => {
   // 获取所有维度
   const res = await axios.get('/api/dimensions')
   allDimensions.value = res.data
+
+  // 检查 URL 参数自动登录
+  const pwdParam = route.query.pwd
+  if (pwdParam && !store.currentJudge) {
+    secretKey.value = pwdParam
+    await login()
+  }
 
   // 如果已登录，加载评分记录
   if (store.currentJudge) {

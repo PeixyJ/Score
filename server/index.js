@@ -1,11 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 const { initDatabase } = require('./db');
 
 const app = express();
 const server = http.createServer(app);
+
+// 生成随机管理密码
+const ADMIN_PASSWORD = crypto.randomBytes(4).toString('hex');
 
 // Socket.IO 配置
 const io = new Server(server, {
@@ -75,6 +79,16 @@ async function startServer() {
   app.use('/api/tracks', tracksRouter);
   app.use('/api/config', configRouter);
 
+  // 管理端密码验证
+  app.post('/api/admin/verify', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, error: '密码错误' });
+    }
+  });
+
   // 初始化 Socket.IO
   initSocket(io);
 
@@ -90,6 +104,8 @@ async function startServer() {
   ========================================
   本地访问: http://localhost:${PORT}
   局域网访问: http://${localIP}:${PORT}
+  ----------------------------------------
+  管理后台密码: ${ADMIN_PASSWORD}
   ========================================
     `);
   });

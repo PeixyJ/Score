@@ -83,6 +83,8 @@ start_server() {
 
     if ps -p $SERVER_PID > /dev/null 2>&1; then
         echo -e "  后端服务已启动 ✓ (PID: $SERVER_PID)"
+        # 从日志中提取管理密码
+        ADMIN_PASSWORD=$(grep "管理后台密码:" /tmp/score-server.log | sed 's/.*管理后台密码: //')
     else
         echo -e "${RED}  后端服务启动失败，查看日志:${NC}"
         cat /tmp/score-server.log
@@ -147,13 +149,13 @@ echo "=========================================="
 echo -e "${NC}"
 echo -e "  ${BLUE}访问地址:${NC}"
 echo ""
-echo -e "  首页:      http://localhost:5173"
-echo -e "  管理后台:  http://localhost:5173/admin"
+echo -e "  首页:      http://${LOCAL_IP}:5173"
+echo -e "  管理后台:  http://${LOCAL_IP}:5173/admin"
 echo -e "  手机评分:  http://${LOCAL_IP}:5173/mobile"
-echo -e "  PC大屏:    http://localhost:5173/screen"
+echo -e "  PC大屏:    http://${LOCAL_IP}:5173/screen"
 echo ""
-echo -e "  ${YELLOW}手机扫码访问: http://${LOCAL_IP}:5173/mobile${NC}"
-echo ""
+echo "=========================================="
+echo -e "  ${RED}管理后台密码: ${ADMIN_PASSWORD}${NC}"
 echo "=========================================="
 echo -e "  按 ${RED}Ctrl+C${NC} 停止所有服务"
 echo "=========================================="

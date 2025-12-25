@@ -383,6 +383,7 @@
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">ID</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">名称</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">密钥</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">专属登录链接</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th>
               </tr>
             </thead>
@@ -392,6 +393,20 @@
                 <td class="px-4 py-3 text-sm text-gray-900">{{ judge.name }}</td>
                 <td class="px-4 py-3">
                   <code class="px-2 py-1 bg-gray-100 rounded text-sm font-mono">{{ judge.secret_key }}</code>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center space-x-2">
+                    <code class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-mono truncate max-w-xs">{{ getJudgeLoginUrl(judge.secret_key) }}</code>
+                    <button
+                      @click="copyJudgeUrl(judge.id, judge.secret_key)"
+                      :class="[
+                        'px-2 py-1 text-white text-xs rounded transition-colors',
+                        copiedJudgeId === judge.id ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'
+                      ]"
+                    >
+                      {{ copiedJudgeId === judge.id ? '已复制' : '复制' }}
+                    </button>
+                  </div>
                 </td>
                 <td class="px-4 py-3 space-x-2">
                   <button @click="startEditJudge(judge)" class="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
@@ -916,9 +931,6 @@ import axios from 'axios'
 
 const store = useScoreStore()
 
-// 管理密码
-const ADMIN_PASSWORD = '111111'
-
 // 认证状态
 const isAuthenticated = ref(false)
 const password = ref('')
@@ -967,23 +979,26 @@ function initTrackDefaults() {
 }
 
 async function login() {
-  if (password.value === ADMIN_PASSWORD) {
-    isAuthenticated.value = true
-    sessionStorage.setItem('admin_auth', 'true')
-    loginError.value = ''
-    password.value = ''
-    // 登录成功后加载数据
-    await Promise.all([
-      store.fetchTracks(),
-      store.fetchJudges(),
-      store.fetchContestants(),
-      store.fetchDimensions(),
-      store.fetchScoreConfig()
-    ])
-    initTrackDefaults()
-    initConfigDefaults()
-  } else {
-    loginError.value = '密码错误，请重试'
+  try {
+    const res = await axios.post('/api/admin/verify', { password: password.value })
+    if (res.data.success) {
+      isAuthenticated.value = true
+      sessionStorage.setItem('admin_auth', 'true')
+      loginError.value = ''
+      password.value = ''
+      // 登录成功后加载数据
+      await Promise.all([
+        store.fetchTracks(),
+        store.fetchJudges(),
+        store.fetchContestants(),
+        store.fetchDimensions(),
+        store.fetchScoreConfig()
+      ])
+      initTrackDefaults()
+      initConfigDefaults()
+    }
+  } catch (err) {
+    loginError.value = err.response?.data?.error || '密码错误，请重试'
   }
 }
 
@@ -1032,6 +1047,7 @@ const editingTrack = ref(null)
 const editingJudge = ref(null)
 const editingContestant = ref(null)
 const editingDimension = ref(null)
+const copiedJudgeId = ref(null)
 
 // 评分配置
 const editingConfig = ref({
@@ -1162,6 +1178,33 @@ async function batchImportJudges() {
   } catch (err) {
     alert('导入失败：' + err.message)
   }
+}
+
+// 获取评委专属登录链接
+function getJudgeLoginUrl(secretKey) {
+  const host = window.location.hostname
+  const port = window.location.port ? `:${window.location.port}` : ''
+  return `http://${host}${port}/mobile?pwd=${secretKey}`
+}
+
+// 复制评委登录链接
+async function copyJudgeUrl(judgeId, secretKey) {
+  const url = getJudgeLoginUrl(secretKey)
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch (err) {
+    // 降级方案
+    const input = document.createElement('input')
+    input.value = url
+    document.body.appendChild(input)
+    input.select()
+    document.execCommand('copy')
+    document.body.removeChild(input)
+  }
+  copiedJudgeId.value = judgeId
+  setTimeout(() => {
+    copiedJudgeId.value = null
+  }, 2000)
 }
 
 // 被评分者操作
