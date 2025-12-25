@@ -3,6 +3,12 @@ const { prepare } = require('../db');
 
 const router = express.Router();
 
+// 获取有效赛道列表
+function getValidTracks() {
+  const tracks = prepare('SELECT name FROM tracks').all();
+  return tracks.map(t => t.name);
+}
+
 // 获取所有被评分者
 router.get('/', (req, res) => {
   const { track } = req.query;
@@ -26,8 +32,9 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: '名称不能为空' });
   }
 
-  if (!['A', 'B'].includes(track)) {
-    return res.status(400).json({ error: '赛道只能是 A 或 B' });
+  const validTracks = getValidTracks();
+  if (!validTracks.includes(track)) {
+    return res.status(400).json({ error: `无效的赛道，可用赛道: ${validTracks.join(', ')}` });
   }
 
   try {
@@ -46,8 +53,11 @@ router.put('/:id', (req, res) => {
   const { id } = req.params;
   const { name, track, order_num } = req.body;
 
-  if (track && !['A', 'B'].includes(track)) {
-    return res.status(400).json({ error: '赛道只能是 A 或 B' });
+  if (track) {
+    const validTracks = getValidTracks();
+    if (!validTracks.includes(track)) {
+      return res.status(400).json({ error: `无效的赛道，可用赛道: ${validTracks.join(', ')}` });
+    }
   }
 
   try {
@@ -73,8 +83,9 @@ router.post('/batch', (req, res) => {
     return res.status(400).json({ error: '名称列表不能为空' });
   }
 
-  if (!['A', 'B'].includes(track)) {
-    return res.status(400).json({ error: '赛道只能是 A 或 B' });
+  const validTracks = getValidTracks();
+  if (!validTracks.includes(track)) {
+    return res.status(400).json({ error: `无效的赛道，可用赛道: ${validTracks.join(', ')}` });
   }
 
   try {

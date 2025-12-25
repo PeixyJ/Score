@@ -3,6 +3,12 @@ const { prepare, saveDatabase } = require('../db');
 
 const router = express.Router();
 
+// Socket.IO 引用（由 index.js 设置）
+let io = null;
+function setIO(socketIO) {
+  io = socketIO;
+}
+
 // 提交大众点评
 router.post('/', (req, res) => {
   const { contestant_id, voter_id, rating } = req.body;
@@ -29,6 +35,20 @@ router.post('/', (req, res) => {
       prepare(
         'INSERT INTO public_ratings (contestant_id, voter_id, rating) VALUES (?, ?, ?)'
       ).run(contestant_id, voter_id, rating);
+    }
+
+    // 获取选手名称
+    const contestant = prepare('SELECT name FROM contestants WHERE id = ?').get(contestant_id);
+
+    // 广播实时投票事件
+    if (io) {
+      io.emit('publicVoteActivity', {
+        contestantId: contestant_id,
+        contestantName: contestant?.name || '未知选手',
+        rating: rating,
+        voterId: voter_id.substring(0, 8) + '***', // 隐藏部分ID
+        timestamp: Date.now()
+      });
     }
 
     saveDatabase();
@@ -80,3 +100,4 @@ router.delete('/voter/:voterId/contestant/:contestantId', (req, res) => {
 });
 
 module.exports = router;
+module.exports.setIO = setIO;

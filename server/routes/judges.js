@@ -39,6 +39,23 @@ router.post('/verify', (req, res) => {
   }
 });
 
+// 更新评分者
+router.put('/:id', (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: '名称不能为空' });
+  }
+
+  try {
+    prepare('UPDATE judges SET name = ? WHERE id = ?').run(name, id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 删除评分者
 router.delete('/:id', (req, res) => {
   const { id } = req.params;

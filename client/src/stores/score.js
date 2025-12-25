@@ -9,6 +9,10 @@ export const useScoreStore = defineStore('score', () => {
   const contestants = ref([])
   const dimensions = ref([])
   const judges = ref([])
+  const tracks = ref([])
+  const scoreConfig = ref({ professional_weight: 70, public_weight: 30, default_max_score: 5, show_public_vote_realtime: 1 })
+  const publicVoteActivities = ref([]) // 实时大众投票记录
+  const MAX_VOTE_ACTIVITIES = 10 // 最多保留10条记录
   const currentJudge = ref(null)
   const onlineStatus = ref({ judges: [], publicVoterCount: 0 })
 
@@ -42,6 +46,15 @@ export const useScoreStore = defineStore('score', () => {
 
     socket.value.on('onlineStatus', (data) => {
       onlineStatus.value = data
+    })
+
+    // 监听实时大众投票
+    socket.value.on('publicVoteActivity', (data) => {
+      publicVoteActivities.value.unshift(data)
+      // 只保留最新的N条
+      if (publicVoteActivities.value.length > MAX_VOTE_ACTIVITIES) {
+        publicVoteActivities.value.pop()
+      }
     })
   }
 
@@ -94,6 +107,24 @@ export const useScoreStore = defineStore('score', () => {
     judges.value = res.data
   }
 
+  // 获取所有赛道
+  async function fetchTracks() {
+    const res = await axios.get('/api/tracks')
+    tracks.value = res.data
+  }
+
+  // 获取评分配置
+  async function fetchScoreConfig() {
+    const res = await axios.get('/api/config')
+    scoreConfig.value = res.data
+  }
+
+  // 更新评分配置
+  async function updateScoreConfig(config) {
+    await axios.put('/api/config', config)
+    scoreConfig.value = config
+  }
+
   // 验证密钥
   async function verifyKey(secretKey) {
     const res = await axios.post('/api/judges/verify', { secretKey })
@@ -144,6 +175,9 @@ export const useScoreStore = defineStore('score', () => {
     contestants,
     dimensions,
     judges,
+    tracks,
+    scoreConfig,
+    publicVoteActivities,
     currentJudge,
     onlineStatus,
     initSocket,
@@ -152,6 +186,9 @@ export const useScoreStore = defineStore('score', () => {
     fetchContestants,
     fetchDimensions,
     fetchJudges,
+    fetchTracks,
+    fetchScoreConfig,
+    updateScoreConfig,
     verifyKey,
     restoreLogin,
     logout,

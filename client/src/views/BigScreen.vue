@@ -75,107 +75,196 @@
 
     <!-- 主体内容：左右两列布局 -->
     <div class="max-w-full mx-auto grid grid-cols-12 gap-6" style="height: calc(100vh - 200px);">
-      <!-- 左侧：TOP 3 展示 -->
-      <div class="col-span-4 flex flex-col gap-4 overflow-hidden">
-        <!-- A赛道获奖 -->
-        <div class="flex-1 bg-gradient-to-br from-orange-500/20 to-orange-900/10 rounded-2xl p-4 border border-orange-500/30 overflow-hidden">
-          <h2 class="text-2xl font-bold text-center text-orange-400 mb-4 flex items-center justify-center gap-2">
-            <span class="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-            A 赛道获奖
-          </h2>
-          <div class="space-y-3">
-            <div
-              v-for="(item, index) in topThreeA"
-              :key="item.id"
-              class="flex items-center gap-3 p-3 rounded-xl transition-all duration-500"
-              :class="getTop3BgClass(index, 'A')"
-            >
-              <!-- 奖项标签 -->
-              <div
+      <!-- 左侧：赛道获奖 + 实时投票 -->
+      <div class="col-span-3 flex flex-col h-full">
+        <!-- 赛道获奖区域 -->
+        <div class="bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex flex-col" style="height: 340px;">
+          <!-- 赛道选择按钮 + 标题 -->
+          <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              赛道获奖
+            </h2>
+            <div class="flex items-center gap-1">
+              <button
+                v-for="(track, index) in allTracks"
+                :key="track.name"
+                @click="selectTrack(index)"
                 :class="[
-                  'flex-shrink-0 px-3 py-2 rounded-lg flex items-center justify-center font-bold shadow-lg',
-                  getAwardClass(index)
+                  'px-3 py-1 rounded-full text-xs font-medium transition-all duration-300',
+                  currentTrackIndex === index
+                    ? `bg-${track.color}-500 text-white`
+                    : `bg-white/10 text-gray-400 hover:bg-white/20`
                 ]"
               >
-                {{ getAwardName(index) }}
-              </div>
-              <!-- 名称和分数详情 -->
-              <div class="flex-1 min-w-0">
-                <div class="text-xl font-bold truncate">{{ item.name }}</div>
-                <div class="text-xs text-orange-300">
-                  专业{{ item.professional_score?.toFixed(1) || 0 }} + 大众{{ item.public_rating_avg?.toFixed(1) || 0 }}
+                {{ track.display_name }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 轮播容器 -->
+          <div class="flex-1 relative overflow-hidden">
+            <TransitionGroup name="carousel" tag="div" class="h-full">
+              <div
+                v-for="(track, index) in allTracks"
+                v-show="currentTrackIndex === index"
+                :key="track.name"
+                :class="[
+                  'absolute inset-0 p-4',
+                  `bg-gradient-to-br from-${track.color}-500/10 to-transparent`
+                ]"
+              >
+                <div class="space-y-3">
+                  <div
+                    v-for="(item, idx) in getTopThree(track.name)"
+                    :key="item.id"
+                    class="flex items-center gap-3 p-3 rounded-xl transition-all duration-500"
+                    :class="getTop3BgClass(idx, track.color)"
+                  >
+                    <!-- 奖项标签 -->
+                    <div
+                      :class="[
+                        'flex-shrink-0 w-16 py-1.5 rounded-lg text-center font-bold shadow-lg text-sm',
+                        getAwardClass(idx)
+                      ]"
+                    >
+                      {{ getAwardName(idx) }}
+                    </div>
+                    <!-- 名称和分数详情 -->
+                    <div class="flex-1 min-w-0">
+                      <div class="text-lg font-bold truncate">{{ item.name }}</div>
+                      <div :class="['text-xs', `text-${track.color}-300`]">
+                        专业{{ item.professional_contribution?.toFixed(1) || 0 }} + 大众{{ item.public_contribution?.toFixed(1) || 0 }}
+                      </div>
+                    </div>
+                    <!-- 总分 -->
+                    <div class="text-2xl font-bold text-yellow-400">{{ item.total_score.toFixed(2) }}</div>
+                  </div>
+                  <!-- 空状态 -->
+                  <div v-if="getTopThree(track.name).length === 0" :class="['text-center py-8', `text-${track.color}-300/60`]">
+                    <p>暂无评分数据</p>
+                  </div>
                 </div>
               </div>
-              <!-- 总分 -->
-              <div class="text-right">
-                <div class="text-3xl font-bold text-yellow-400">{{ item.total_score.toFixed(2) }}</div>
-              </div>
+            </TransitionGroup>
+
+            <!-- 左右切换按钮 -->
+            <button
+              v-if="allTracks.length > 1"
+              @click="prevTrack"
+              class="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all z-10"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <button
+              v-if="allTracks.length > 1"
+              @click="nextTrack"
+              class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all z-10"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 底部：轮播指示器 + 自动轮播控制 -->
+          <div class="flex items-center justify-between px-4 py-2 border-t border-white/10">
+            <div class="flex items-center gap-1">
+              <button
+                v-for="(track, i) in allTracks"
+                :key="track.name"
+                @click="selectTrack(i)"
+                :class="[
+                  'w-2 h-2 rounded-full transition-all duration-300',
+                  currentTrackIndex === i
+                    ? `bg-${allTracks[currentTrackIndex]?.color || 'blue'}-400 w-5`
+                    : 'bg-white/30 hover:bg-white/50'
+                ]"
+              ></button>
             </div>
-            <!-- 空状态 -->
-            <div v-if="topThreeA.length === 0" class="text-center py-6 text-orange-300/60">
-              <p>暂无评分数据</p>
+            <button
+              @click="toggleAutoPlay"
+              :class="[
+                'px-2 py-1 rounded text-xs transition-all flex items-center gap-1',
+                autoPlayEnabled
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'bg-white/10 text-gray-400'
+              ]"
+            >
+              <svg v-if="autoPlayEnabled" class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              </svg>
+              <svg v-else class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              {{ autoPlayEnabled ? '暂停' : '播放' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 实时大众投票动态 -->
+        <div v-if="store.scoreConfig.show_public_vote_realtime" class="flex-1 mt-4 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex flex-col">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+            <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            <h3 class="text-lg font-bold text-white">实时大众投票</h3>
+            <span class="ml-auto text-xs text-gray-400">{{ store.publicVoteActivities.length }} 条记录</span>
+          </div>
+          <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+            <TransitionGroup name="vote-activity" tag="div" class="space-y-2">
+              <div
+                v-for="activity in store.publicVoteActivities"
+                :key="activity.timestamp"
+                class="flex items-center justify-between py-2 px-3 bg-white/5 rounded-lg"
+              >
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-gray-400 text-xs">{{ activity.voterId }}</span>
+                  <span class="text-pink-400">→</span>
+                  <span class="text-white font-medium">{{ activity.contestantName }}</span>
+                </div>
+                <div class="flex items-center text-yellow-400 text-sm">
+                  {{ '★'.repeat(activity.rating) }}<span class="text-gray-600">{{ '☆'.repeat(5 - activity.rating) }}</span>
+                </div>
+              </div>
+            </TransitionGroup>
+            <div v-if="store.publicVoteActivities.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-sm">
+              等待投票中...
             </div>
           </div>
         </div>
 
-        <!-- B赛道获奖 -->
-        <div class="flex-1 bg-gradient-to-br from-purple-500/20 to-purple-900/10 rounded-2xl p-4 border border-purple-500/30 overflow-hidden">
-          <h2 class="text-2xl font-bold text-center text-purple-400 mb-4 flex items-center justify-center gap-2">
-            <span class="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
-            B 赛道获奖
-          </h2>
-          <div class="space-y-3">
-            <div
-              v-for="(item, index) in topThreeB"
-              :key="item.id"
-              class="flex items-center gap-3 p-3 rounded-xl transition-all duration-500"
-              :class="getTop3BgClass(index, 'B')"
-            >
-              <!-- 奖项标签 -->
-              <div
-                :class="[
-                  'flex-shrink-0 px-3 py-2 rounded-lg flex items-center justify-center font-bold shadow-lg',
-                  getAwardClass(index)
-                ]"
-              >
-                {{ getAwardName(index) }}
-              </div>
-              <!-- 名称和分数详情 -->
-              <div class="flex-1 min-w-0">
-                <div class="text-xl font-bold truncate">{{ item.name }}</div>
-                <div class="text-xs text-purple-300">
-                  专业{{ item.professional_score?.toFixed(1) || 0 }} + 大众{{ item.public_rating_avg?.toFixed(1) || 0 }}
-                </div>
-              </div>
-              <!-- 总分 -->
-              <div class="text-right">
-                <div class="text-3xl font-bold text-yellow-400">{{ item.total_score.toFixed(2) }}</div>
-              </div>
-            </div>
-            <!-- 空状态 -->
-            <div v-if="topThreeB.length === 0" class="text-center py-6 text-purple-300/60">
-              <p>暂无评分数据</p>
-            </div>
-          </div>
-        </div>
+        <!-- 如果不显示实时投票，用空白填充对齐 -->
+        <div v-else class="flex-1"></div>
       </div>
 
-      <!-- 右侧：完整排名（A+B赛道混合） -->
-      <div class="col-span-8 bg-white/5 rounded-2xl p-5 border border-white/10 overflow-hidden flex flex-col">
-        <h2 class="text-2xl font-bold mb-4 text-center">完整排名</h2>
-
-        <!-- 评分者图例 -->
-        <div v-if="allJudges.length > 0" class="flex flex-wrap items-center gap-3 mb-3 px-2">
-          <span class="text-sm text-blue-300">评分者:</span>
-          <div v-for="judge in allJudges" :key="judge.id" class="flex items-center gap-1">
-            <span class="w-3 h-3 rounded-full bg-gray-500/50"></span>
-            <span class="text-xs text-gray-400">{{ judge.name }}</span>
+      <!-- 右侧：完整排名 -->
+      <div class="col-span-9 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex flex-col">
+        <!-- 标题栏 -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-white/10">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            完整排名
+          </h2>
+          <!-- 评分者图例 -->
+          <div v-if="allJudges.length > 0" class="flex items-center gap-2">
+            <span class="text-xs text-gray-400">评分者:</span>
+            <div v-for="judge in allJudges" :key="judge.id" class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-gray-500/50"></span>
+              <span class="text-xs text-gray-500">{{ judge.name }}</span>
+            </div>
+            <span class="text-xs text-gray-600">(绿色=已评)</span>
           </div>
-          <span class="text-xs text-gray-500 ml-2">(绿色表示已评分)</span>
         </div>
 
         <!-- 表头 -->
-        <div class="grid grid-cols-12 gap-2 px-4 py-2 bg-white/10 rounded-lg text-sm font-medium text-blue-200 mb-2">
+        <div class="grid grid-cols-12 gap-2 mx-4 my-2 px-4 py-2 bg-white/10 rounded-lg text-sm font-medium text-blue-200">
           <div class="col-span-1 text-center">排名</div>
           <div class="col-span-1 text-center">赛道</div>
           <div class="col-span-2">名称</div>
@@ -186,12 +275,12 @@
         </div>
 
         <!-- 排名列表 -->
-        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        <div class="flex-1 overflow-y-auto px-4 custom-scrollbar">
           <TransitionGroup name="ranking" tag="div">
             <div
               v-for="(item, index) in allContestants"
               :key="item.id"
-              class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-white/10 items-center transition-all duration-500 relative"
+              class="grid grid-cols-12 gap-2 px-4 py-2 border-b border-white/10 items-center transition-all duration-500 relative"
               :class="[
                 getRankingClass(index),
                 hasScoreChange(item.id) ? 'score-flash' : '',
@@ -233,7 +322,7 @@
                 <span
                   :class="[
                     'px-2 py-1 rounded text-xs font-bold',
-                    item.track === 'A' ? 'bg-orange-500/30 text-orange-300' : 'bg-purple-500/30 text-purple-300'
+                    `bg-${getTrackInfo(item.track).color}-500/30 text-${getTrackInfo(item.track).color}-300`
                   ]"
                 >
                   {{ item.track }}
@@ -241,7 +330,7 @@
               </div>
 
               <!-- 名称 -->
-              <div class="col-span-2 font-semibold text-lg truncate" :class="shouldCelebrate(item.id) ? 'celebrate-text' : ''">
+              <div class="col-span-2 font-semibold truncate" :class="shouldCelebrate(item.id) ? 'celebrate-text' : ''">
                 {{ item.name }}
               </div>
 
@@ -251,31 +340,32 @@
                   v-for="judge in allJudges"
                   :key="judge.id"
                   :class="[
-                    'w-3 h-3 rounded-full transition-colors',
+                    'w-2.5 h-2.5 rounded-full transition-colors',
                     hasJudgeScored(item, judge.id) ? 'bg-green-500' : 'bg-gray-500/30'
                   ]"
                   :title="judge.name + (hasJudgeScored(item, judge.id) ? ' (已评分)' : ' (未评分)')"
                 ></span>
               </div>
 
-              <!-- 专业分 -->
+              <!-- 专业分（折算后） -->
               <div class="col-span-2 text-center">
-                <div :class="['text-xl font-bold text-blue-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
-                  {{ item.professional_score?.toFixed(2) || '0.00' }}
+                <div :class="['text-lg font-bold text-blue-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
+                  {{ item.professional_contribution?.toFixed(2) || '0.00' }}
                 </div>
+                <div class="text-xs text-gray-500">/ {{ item.config?.professional_weight || 70 }}</div>
               </div>
 
-              <!-- 大众点评 -->
+              <!-- 大众点评（折算后） -->
               <div class="col-span-2 text-center">
-                <div :class="['text-xl font-bold text-pink-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
-                  {{ item.public_rating_avg?.toFixed(2) || '0.00' }}
+                <div :class="['text-lg font-bold text-pink-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
+                  {{ item.public_contribution?.toFixed(2) || '0.00' }}
                 </div>
-                <div class="text-xs text-gray-400">{{ item.public_rating_count || 0 }}人</div>
+                <div class="text-xs text-gray-500">{{ item.public_rating_count || 0 }}人 / {{ item.config?.public_weight || 30 }}</div>
               </div>
 
               <!-- 总分 -->
               <div class="col-span-2 text-center">
-                <div :class="['text-2xl font-bold text-yellow-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
+                <div :class="['text-xl font-bold text-yellow-400 transition-all', hasScoreChange(item.id) ? 'score-number-change' : '']">
                   {{ item.total_score.toFixed(2) }}
                 </div>
               </div>
@@ -332,32 +422,90 @@ const rankChanges = reactive({})      // 排名变化: { id: delta }  正数=上
 const scoreChanges = reactive({})     // 分数变化的选手ID集合
 const celebrateIds = reactive(new Set()) // 需要庆祝动画的选手ID
 
-// A赛道前三名
-const topThreeA = computed(() => {
-  const data = store.rankings['A']
-  if (!data || !data.contestants) return []
-  return data.contestants.slice(0, 3)
+// 轮播状态
+const currentTrackIndex = ref(0)
+const autoPlayEnabled = ref(true)
+let autoPlayInterval = null
+const AUTO_PLAY_DELAY = 5000 // 5秒自动切换
+
+// 轮播控制函数
+function selectTrack(index) {
+  currentTrackIndex.value = index
+  // 手动选择时重置自动播放计时器
+  if (autoPlayEnabled.value) {
+    resetAutoPlay()
+  }
+}
+
+function nextTrack() {
+  const tracks = store.tracks || []
+  if (tracks.length === 0) return
+  currentTrackIndex.value = (currentTrackIndex.value + 1) % tracks.length
+}
+
+function prevTrack() {
+  const tracks = store.tracks || []
+  if (tracks.length === 0) return
+  currentTrackIndex.value = (currentTrackIndex.value - 1 + tracks.length) % tracks.length
+}
+
+function toggleAutoPlay() {
+  autoPlayEnabled.value = !autoPlayEnabled.value
+  if (autoPlayEnabled.value) {
+    startAutoPlay()
+  } else {
+    stopAutoPlay()
+  }
+}
+
+function startAutoPlay() {
+  stopAutoPlay()
+  autoPlayInterval = setInterval(() => {
+    nextTrack()
+  }, AUTO_PLAY_DELAY)
+}
+
+function stopAutoPlay() {
+  if (autoPlayInterval) {
+    clearInterval(autoPlayInterval)
+    autoPlayInterval = null
+  }
+}
+
+function resetAutoPlay() {
+  if (autoPlayEnabled.value) {
+    stopAutoPlay()
+    startAutoPlay()
+  }
+}
+
+// 所有赛道信息
+const allTracks = computed(() => {
+  return store.tracks || []
 })
 
-// B赛道前三名
-const topThreeB = computed(() => {
-  const data = store.rankings['B']
+// 获取某赛道前三名
+function getTopThree(trackName) {
+  const data = store.rankings[trackName]
   if (!data || !data.contestants) return []
   return data.contestants.slice(0, 3)
-})
+}
 
-// 所有选手混合排名（A+B赛道按总分排序）
+// 所有选手混合排名（所有赛道按总分排序）
 const allContestants = computed(() => {
-  const trackA = store.rankings['A']?.contestants || []
-  const trackB = store.rankings['B']?.contestants || []
-  const all = [...trackA, ...trackB]
+  const all = []
+  for (const trackName in store.rankings) {
+    const contestants = store.rankings[trackName]?.contestants || []
+    all.push(...contestants)
+  }
   // 按总分降序排序
   return all.sort((a, b) => b.total_score - a.total_score)
 })
 
 // 所有评分者（从任一赛道获取，因为是相同的）
 const allJudges = computed(() => {
-  return store.rankings['A']?.judges || store.rankings['B']?.judges || []
+  const firstTrack = Object.keys(store.rankings)[0]
+  return store.rankings[firstTrack]?.judges || []
 })
 
 // 上一次在线评委数量（用于检测变化）
@@ -598,9 +746,21 @@ function hasJudgeScored(contestant, judgeId) {
   return contestant.scored_judge_ids?.includes(judgeId) || contestant.scored_judge_ids?.includes(String(judgeId))
 }
 
+// 获取赛道信息
+function getTrackInfo(trackName) {
+  const track = store.tracks.find(t => t.name === trackName)
+  return track || { name: trackName, display_name: trackName, color: 'gray' }
+}
+
 let refreshInterval = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载赛道数据和评分配置
+  await Promise.all([
+    store.fetchTracks(),
+    store.fetchScoreConfig()
+  ])
+
   // 初始化 Socket 连接
   store.initSocket()
 
@@ -611,20 +771,25 @@ onMounted(() => {
       store.socket.emit('getOnlineStatus')
     }
   }, 3000)
+
+  // 启动自动轮播
+  if (autoPlayEnabled.value) {
+    startAutoPlay()
+  }
 })
 
 onUnmounted(() => {
   if (refreshInterval) {
     clearInterval(refreshInterval)
   }
+  // 停止自动轮播
+  stopAutoPlay()
 })
 
-function getTop3BgClass(index, track) {
-  const colors = {
-    A: ['bg-orange-500/30', 'bg-orange-500/20', 'bg-orange-500/10'],
-    B: ['bg-purple-500/30', 'bg-purple-500/20', 'bg-purple-500/10']
-  }
-  return colors[track][index] || ''
+function getTop3BgClass(index, color) {
+  const opacities = ['30', '20', '10']
+  const opacity = opacities[index] || '10'
+  return `bg-${color}-500/${opacity}`
 }
 
 function getMedalClass(index) {
@@ -751,6 +916,46 @@ function getRankBadgeClass(index) {
 .ranking-leave-to {
   opacity: 0;
   transform: translateX(30px);
+}
+
+/* 轮播动画 */
+.carousel-enter-active,
+.carousel-leave-active {
+  transition: all 0.5s ease;
+}
+
+.carousel-enter-from {
+  opacity: 0;
+  transform: translateX(50px);
+}
+
+.carousel-leave-to {
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+/* 投票动态动画 */
+.vote-activity-enter-active {
+  transition: all 0.4s ease-out;
+}
+
+.vote-activity-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.vote-activity-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+  background: rgba(236, 72, 153, 0.3);
+}
+
+.vote-activity-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.vote-activity-move {
+  transition: transform 0.3s ease;
 }
 
 /* 滚动条样式 */

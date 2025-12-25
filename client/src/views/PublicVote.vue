@@ -8,7 +8,7 @@
       </header>
 
       <!-- 赛道筛选 -->
-      <div class="flex justify-center space-x-3 mb-6">
+      <div class="flex flex-wrap justify-center gap-3 mb-6">
         <button
           @click="trackFilter = ''"
           :class="[
@@ -19,22 +19,15 @@
           全部
         </button>
         <button
-          @click="trackFilter = 'A'"
+          v-for="track in tracks"
+          :key="track.name"
+          @click="trackFilter = track.name"
           :class="[
             'px-5 py-2 rounded-full font-medium transition-all',
-            trackFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-white/20 text-white'
+            trackFilter === track.name ? `bg-${track.color}-500 text-white` : 'bg-white/20 text-white'
           ]"
         >
-          A赛道
-        </button>
-        <button
-          @click="trackFilter = 'B'"
-          :class="[
-            'px-5 py-2 rounded-full font-medium transition-all',
-            trackFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-white/20 text-white'
-          ]"
-        >
-          B赛道
+          {{ track.display_name }}
         </button>
       </div>
 
@@ -50,7 +43,7 @@
               <span
                 :class="[
                   'px-2 py-1 rounded text-xs font-bold',
-                  contestant.track === 'A' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'
+                  `bg-${getTrackInfo(contestant.track).color}-100 text-${getTrackInfo(contestant.track).color}-600`
                 ]"
               >
                 {{ contestant.track }}
@@ -116,11 +109,17 @@ import { io } from 'socket.io-client'
 import axios from 'axios'
 
 const contestants = ref([])
+const tracks = ref([])
 const trackFilter = ref('')
 const myRatings = reactive({})
 const voterId = ref('')
 const publicRatings = reactive({}) // 存储每个选手的大众评分统计
 let socket = null
+
+function getTrackInfo(trackName) {
+  const track = tracks.value.find(t => t.name === trackName)
+  return track || { name: trackName, display_name: trackName + '赛道', color: 'gray' }
+}
 
 const filteredContestants = computed(() => {
   if (!trackFilter.value) return contestants.value
@@ -136,9 +135,13 @@ onMounted(async () => {
   }
   voterId.value = id
 
-  // 加载选手列表
-  const res = await axios.get('/api/contestants')
-  contestants.value = res.data
+  // 加载选手列表和赛道
+  const [contestantsRes, tracksRes] = await Promise.all([
+    axios.get('/api/contestants'),
+    axios.get('/api/tracks')
+  ])
+  contestants.value = contestantsRes.data
+  tracks.value = tracksRes.data
 
   // 加载我的评分和大众评分统计
   for (const contestant of contestants.value) {

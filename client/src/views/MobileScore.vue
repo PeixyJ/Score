@@ -61,7 +61,7 @@
         <h2 class="text-lg font-semibold text-gray-800 mb-4">选择被评分者</h2>
 
         <!-- 赛道筛选 -->
-        <div class="flex space-x-2 mb-4">
+        <div class="flex flex-wrap gap-2 mb-4">
           <button
             @click="trackFilter = ''"
             :class="[
@@ -72,22 +72,15 @@
             全部
           </button>
           <button
-            @click="trackFilter = 'A'"
+            v-for="track in store.tracks"
+            :key="track.name"
+            @click="trackFilter = track.name"
             :class="[
               'px-4 py-2 rounded-full text-sm font-medium',
-              trackFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'
+              trackFilter === track.name ? `bg-${track.color}-500 text-white` : 'bg-white text-gray-600'
             ]"
           >
-            A赛道
-          </button>
-          <button
-            @click="trackFilter = 'B'"
-            :class="[
-              'px-4 py-2 rounded-full text-sm font-medium',
-              trackFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-white text-gray-600'
-            ]"
-          >
-            B赛道
+            {{ track.display_name }}
           </button>
         </div>
 
@@ -103,7 +96,7 @@
                 <span
                   :class="[
                     'px-2 py-1 rounded text-xs font-medium',
-                    contestant.track === 'A' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'
+                    `bg-${getTrackInfo(contestant.track).color}-100 text-${getTrackInfo(contestant.track).color}-600`
                   ]"
                 >
                   {{ contestant.track }}
@@ -131,9 +124,10 @@
                   <span
                     v-for="score in myScoresMap[contestant.id]"
                     :key="score.dimension_id"
-                    class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded"
+                    class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded flex items-center"
                   >
-                    {{ getDimensionName(score.dimension_id) }}: {{ score.score }}
+                    {{ getDimensionName(score.dimension_id) }}:
+                    <span class="ml-1 text-yellow-500">{{ '★'.repeat(score.score) }}</span>
                   </span>
                 </div>
                 <button
@@ -169,14 +163,14 @@
             <span
               :class="[
                 'px-2 py-1 rounded text-xs font-medium',
-                selectedContestant.track === 'A' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'
+                `bg-${getTrackInfo(selectedContestant.track).color}-100 text-${getTrackInfo(selectedContestant.track).color}-600`
               ]"
             >
-              {{ selectedContestant.track }}赛道
+              {{ getTrackInfo(selectedContestant.track).display_name }}
             </span>
             <h2 class="text-xl font-bold text-gray-800">{{ selectedContestant.name }}</h2>
           </div>
-          <p class="text-gray-500 text-sm mt-2">请为各维度打分</p>
+          <p class="text-gray-500 text-sm mt-2">请点击星星为各维度打分</p>
         </div>
 
         <!-- 各维度评分 -->
@@ -186,23 +180,32 @@
             :key="dim.id"
             class="bg-white rounded-xl shadow p-4"
           >
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center justify-between mb-3">
               <span class="font-medium text-gray-800">{{ dim.name }}</span>
-              <span class="text-2xl font-bold text-blue-500">{{ scores[dim.id] || 0 }}</span>
+              <span class="text-xl font-bold text-blue-500">{{ scores[dim.id] || 0 }} / {{ store.scoreConfig.default_max_score }}</span>
             </div>
 
-            <input
-              type="range"
-              :min="0"
-              :max="dim.max_score"
-              :step="0.5"
-              v-model.number="scores[dim.id]"
-              class="w-full"
-            />
+            <!-- 五角星评分 -->
+            <div class="flex items-center justify-center space-x-1">
+              <button
+                v-for="star in store.scoreConfig.default_max_score"
+                :key="star"
+                @click="scores[dim.id] = star"
+                class="text-4xl transition-transform hover:scale-110 focus:outline-none"
+              >
+                <span v-if="(scores[dim.id] || 0) >= star" class="text-yellow-400">★</span>
+                <span v-else class="text-gray-300">☆</span>
+              </button>
+            </div>
 
-            <div class="flex justify-between text-xs text-gray-400 mt-1">
-              <span>0</span>
-              <span>{{ dim.max_score }}</span>
+            <div class="text-center mt-2">
+              <button
+                v-if="scores[dim.id] > 0"
+                @click="scores[dim.id] = 0"
+                class="text-xs text-gray-400 hover:text-red-500"
+              >
+                清除
+              </button>
             </div>
           </div>
         </div>
@@ -259,6 +262,11 @@ function getDimensionName(dimensionId) {
   return dim ? dim.name : '未知维度'
 }
 
+function getTrackInfo(trackName) {
+  const track = store.tracks.find(t => t.name === trackName)
+  return track || { name: trackName, display_name: trackName + '赛道', color: 'gray' }
+}
+
 async function loadAllMyScores() {
   if (!store.currentJudge) return
 
@@ -277,7 +285,11 @@ onMounted(async () => {
   await store.restoreLogin()
 
   // 加载数据
-  await store.fetchContestants()
+  await Promise.all([
+    store.fetchContestants(),
+    store.fetchTracks(),
+    store.fetchScoreConfig()
+  ])
 
   // 获取所有维度
   const res = await axios.get('/api/dimensions')

@@ -64,6 +64,238 @@
         </button>
       </div>
 
+      <!-- 评分配置 -->
+      <div v-if="activeTab === 'config'" class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-6">评分配置</h2>
+
+        <div class="max-w-xl space-y-6">
+          <!-- 权重配置（即最高分） -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-sm font-medium text-gray-700 mb-4">分数权重配置</h3>
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm text-gray-600 mb-2">专业评分最高分</label>
+                <div class="flex items-center">
+                  <input
+                    v-model.number="editingConfig.professional_weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    class="w-24 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold text-blue-600"
+                  />
+                  <span class="ml-2 text-gray-500">分</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">评委打满分时折算的分数</p>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-2">大众评分最高分</label>
+                <div class="flex items-center">
+                  <input
+                    v-model.number="editingConfig.public_weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    class="w-24 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-bold text-green-600"
+                  />
+                  <span class="ml-2 text-gray-500">分</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">大众打满分时折算的分数</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 评委打分满分设置 -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-sm font-medium text-gray-700 mb-4">评委打分设置</h3>
+            <div class="flex items-center">
+              <label class="text-sm text-gray-600 mr-3">每项打分满分</label>
+              <input
+                v-model.number="editingConfig.default_max_score"
+                type="number"
+                min="1"
+                max="100"
+                class="w-20 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span class="ml-2 text-gray-500">分</span>
+            </div>
+            <p class="mt-2 text-xs text-gray-500">
+              评委和大众投票时，每项打分的满分值
+            </p>
+          </div>
+
+          <!-- 计算结果预览 -->
+          <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 class="text-sm font-medium text-blue-800 mb-3">计算规则预览</h3>
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between p-2 bg-white rounded">
+                <span class="text-gray-600">总分最高分：</span>
+                <span class="font-bold text-purple-600 text-xl">
+                  {{ editingConfig.professional_weight + editingConfig.public_weight }} 分
+                </span>
+              </div>
+              <div class="text-gray-600">
+                <p class="mb-2">计算公式：</p>
+                <div class="p-3 bg-white rounded font-mono text-xs">
+                  <p>专业得分 = (评委平均分 / {{ editingConfig.default_max_score }}) × <span class="text-blue-600 font-bold">{{ editingConfig.professional_weight }}</span></p>
+                  <p class="mt-1">大众得分 = (大众平均分 / {{ editingConfig.default_max_score }}) × <span class="text-green-600 font-bold">{{ editingConfig.public_weight }}</span></p>
+                  <p class="mt-1 pt-1 border-t">总分 = 专业得分 + 大众得分</p>
+                </div>
+              </div>
+              <div class="text-gray-500 text-xs">
+                <p>示例：评委打 {{ editingConfig.default_max_score }} 分（满分），大众打 {{ editingConfig.default_max_score }} 分（满分）</p>
+                <p>→ 专业得分 = {{ editingConfig.professional_weight }} 分，大众得分 = {{ editingConfig.public_weight }} 分，总分 = {{ editingConfig.professional_weight + editingConfig.public_weight }} 分</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 大屏显示设置 -->
+          <div class="p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-sm font-medium text-gray-700 mb-4">大屏显示设置</h3>
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm text-gray-600">显示实时大众投票动态</label>
+                <p class="text-xs text-gray-500 mt-1">在大屏左侧显示实时的大众评委投票记录</p>
+              </div>
+              <button
+                @click="editingConfig.show_public_vote_realtime = editingConfig.show_public_vote_realtime ? 0 : 1"
+                :class="[
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  editingConfig.show_public_vote_realtime ? 'bg-blue-500' : 'bg-gray-300'
+                ]"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    editingConfig.show_public_vote_realtime ? 'translate-x-6' : 'translate-x-1'
+                  ]"
+                ></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 保存按钮 -->
+          <div class="flex space-x-2">
+            <button
+              @click="saveConfig"
+              class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              保存配置
+            </button>
+            <button
+              @click="initConfigDefaults"
+              class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              重置
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 赛道管理 -->
+      <div v-if="activeTab === 'tracks'" class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold">赛道列表</h2>
+          <div class="flex space-x-2">
+            <input
+              v-model="newTrackName"
+              type="text"
+              placeholder="赛道标识 (如: C)"
+              class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+            />
+            <input
+              v-model="newTrackDisplayName"
+              type="text"
+              placeholder="显示名称 (如: C赛道)"
+              class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              v-model="newTrackColor"
+              class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option v-for="color in trackColors" :key="color" :value="color">{{ color }}</option>
+            </select>
+            <button
+              @click="addTrack"
+              class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            >
+              添加
+            </button>
+          </div>
+        </div>
+
+        <!-- 编辑赛道弹窗 -->
+        <div v-if="editingTrack" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">编辑赛道</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">赛道标识</label>
+                <input v-model="editingTrack.name" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">显示名称</label>
+                <input v-model="editingTrack.display_name" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">颜色</label>
+                <select v-model="editingTrack.color" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option v-for="color in trackColors" :key="color" :value="color">{{ color }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">序号</label>
+                <input v-model.number="editingTrack.order_num" type="number" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+              <button @click="cancelEditTrack" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+              <button @click="saveEditTrack" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">保存</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">ID</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">标识</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">显示名称</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">颜色</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">序号</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <tr v-for="track in store.tracks" :key="track.id">
+                <td class="px-4 py-3 text-sm text-gray-900">{{ track.id }}</td>
+                <td class="px-4 py-3 text-sm text-gray-900 font-mono font-bold">{{ track.name }}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">{{ track.display_name }}</td>
+                <td class="px-4 py-3">
+                  <span
+                    :class="[
+                      'px-2 py-1 rounded-full text-xs font-medium',
+                      `bg-${track.color}-100 text-${track.color}-600`
+                    ]"
+                  >
+                    {{ track.color }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">{{ track.order_num }}</td>
+                <td class="px-4 py-3 space-x-2">
+                  <button @click="startEditTrack(track)" class="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
+                  <button @click="deleteTrack(track.id)" class="text-red-500 hover:text-red-600 text-sm">删除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="mt-4 text-sm text-gray-500">
+          提示：删除赛道前需要先删除该赛道下的所有选手和评分维度
+        </p>
+      </div>
+
       <!-- 评分者管理 -->
       <div v-if="activeTab === 'judges'" class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center justify-between mb-4">
@@ -123,6 +355,27 @@
           </div>
         </div>
 
+        <!-- 编辑评分者弹窗 -->
+        <div v-if="editingJudge" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">编辑评分者</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">名称</label>
+                <input v-model="editingJudge.name" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">密钥（不可修改）</label>
+                <code class="block px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono">{{ editingJudge.secret_key }}</code>
+              </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+              <button @click="cancelEditJudge" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+              <button @click="saveEditJudge" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">保存</button>
+            </div>
+          </div>
+        </div>
+
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50">
@@ -140,13 +393,9 @@
                 <td class="px-4 py-3">
                   <code class="px-2 py-1 bg-gray-100 rounded text-sm font-mono">{{ judge.secret_key }}</code>
                 </td>
-                <td class="px-4 py-3">
-                  <button
-                    @click="deleteJudge(judge.id)"
-                    class="text-red-500 hover:text-red-600 text-sm"
-                  >
-                    删除
-                  </button>
+                <td class="px-4 py-3 space-x-2">
+                  <button @click="startEditJudge(judge)" class="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
+                  <button @click="deleteJudge(judge.id)" class="text-red-500 hover:text-red-600 text-sm">删除</button>
                 </td>
               </tr>
             </tbody>
@@ -170,8 +419,7 @@
               v-model="newContestantTrack"
               class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="A">A赛道</option>
-              <option value="B">B赛道</option>
+              <option v-for="track in store.tracks" :key="track.name" :value="track.name">{{ track.display_name }}</option>
             </select>
             <button
               @click="addContestant"
@@ -198,8 +446,7 @@
                 v-model="batchImportTrack"
                 class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="A">A赛道</option>
-                <option value="B">B赛道</option>
+                <option v-for="track in store.tracks" :key="track.name" :value="track.name">{{ track.display_name }}</option>
               </select>
             </div>
             <div class="mb-4">
@@ -229,6 +476,33 @@
           </div>
         </div>
 
+        <!-- 编辑被评分者弹窗 -->
+        <div v-if="editingContestant" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">编辑被评分者</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">名称</label>
+                <input v-model="editingContestant.name" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">赛道</label>
+                <select v-model="editingContestant.track" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option v-for="track in store.tracks" :key="track.name" :value="track.name">{{ track.display_name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">序号</label>
+                <input v-model.number="editingContestant.order_num" type="number" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+              <button @click="cancelEditContestant" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+              <button @click="saveEditContestant" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">保存</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 赛道筛选 -->
         <div class="flex space-x-2 mb-4">
           <button
@@ -241,22 +515,15 @@
             全部
           </button>
           <button
-            @click="contestantFilter = 'A'"
+            v-for="track in store.tracks"
+            :key="track.name"
+            @click="contestantFilter = track.name"
             :class="[
               'px-3 py-1 rounded-full text-sm',
-              contestantFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
+              contestantFilter === track.name ? `bg-${track.color}-500 text-white` : 'bg-gray-200 text-gray-600'
             ]"
           >
-            A赛道
-          </button>
-          <button
-            @click="contestantFilter = 'B'"
-            :class="[
-              'px-3 py-1 rounded-full text-sm',
-              contestantFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
-            ]"
-          >
-            B赛道
+            {{ track.display_name }}
           </button>
         </div>
 
@@ -279,20 +546,16 @@
                   <span
                     :class="[
                       'px-2 py-1 rounded-full text-xs font-medium',
-                      contestant.track === 'A' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'
+                      `bg-${getTrackInfo(contestant.track).color}-100 text-${getTrackInfo(contestant.track).color}-600`
                     ]"
                   >
-                    {{ contestant.track }}赛道
+                    {{ getTrackInfo(contestant.track).display_name }}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-900">{{ contestant.order_num }}</td>
-                <td class="px-4 py-3">
-                  <button
-                    @click="deleteContestant(contestant.id)"
-                    class="text-red-500 hover:text-red-600 text-sm"
-                  >
-                    删除
-                  </button>
+                <td class="px-4 py-3 space-x-2">
+                  <button @click="startEditContestant(contestant)" class="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
+                  <button @click="deleteContestant(contestant.id)" class="text-red-500 hover:text-red-600 text-sm">删除</button>
                 </td>
               </tr>
             </tbody>
@@ -329,11 +592,11 @@
               <textarea
                 v-model="dimensionBatchImportText"
                 rows="10"
-                placeholder="A 软件完成度与质量 5 40&#10;A 创新性 5 30&#10;B 演讲表现 10 50&#10;..."
+                placeholder="A 软件完成度与质量 40&#10;A 创新性 30&#10;B 演讲表现 50&#10;..."
                 class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               ></textarea>
             </div>
-            <p class="text-sm text-gray-500 mb-4">格式：赛道 名称 最高分 权重（空格分隔）</p>
+            <p class="text-sm text-gray-500 mb-4">格式：赛道 名称 权重（空格分隔）</p>
             <div class="flex justify-end space-x-2">
               <button
                 @click="showDimensionBatchImport = false; dimensionBatchImportText = ''"
@@ -354,7 +617,7 @@
 
         <!-- 添加维度表单 -->
         <div v-if="showDimensionForm" class="mb-6 p-4 bg-gray-50 rounded-lg">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">维度名称</label>
               <input
@@ -369,18 +632,8 @@
                 v-model="newDimension.track"
                 class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="A">A赛道</option>
-                <option value="B">B赛道</option>
+                <option v-for="track in store.tracks" :key="track.name" :value="track.name">{{ track.display_name }}</option>
               </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">最高分</label>
-              <input
-                v-model.number="newDimension.max_score"
-                type="number"
-                min="1"
-                class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">权重</label>
@@ -409,6 +662,37 @@
           </div>
         </div>
 
+        <!-- 编辑维度弹窗 -->
+        <div v-if="editingDimension" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">编辑评分维度</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">维度名称</label>
+                <input v-model="editingDimension.name" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">所属赛道</label>
+                <select v-model="editingDimension.track" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option v-for="track in store.tracks" :key="track.name" :value="track.name">{{ track.display_name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">权重</label>
+                <input v-model.number="editingDimension.weight" type="number" min="0.1" step="0.1" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">序号</label>
+                <input v-model.number="editingDimension.order_num" type="number" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+              <button @click="cancelEditDimension" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+              <button @click="saveEditDimension" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">保存</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 赛道筛选 -->
         <div class="flex space-x-2 mb-4">
           <button
@@ -421,22 +705,15 @@
             全部
           </button>
           <button
-            @click="dimensionFilter = 'A'"
+            v-for="track in store.tracks"
+            :key="track.name"
+            @click="dimensionFilter = track.name"
             :class="[
               'px-3 py-1 rounded-full text-sm',
-              dimensionFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
+              dimensionFilter === track.name ? `bg-${track.color}-500 text-white` : 'bg-gray-200 text-gray-600'
             ]"
           >
-            A赛道
-          </button>
-          <button
-            @click="dimensionFilter = 'B'"
-            :class="[
-              'px-3 py-1 rounded-full text-sm',
-              dimensionFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
-            ]"
-          >
-            B赛道
+            {{ track.display_name }}
           </button>
         </div>
 
@@ -447,7 +724,6 @@
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">ID</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">名称</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">赛道</th>
-                <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">最高分</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">权重</th>
                 <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th>
               </tr>
@@ -460,21 +736,16 @@
                   <span
                     :class="[
                       'px-2 py-1 rounded-full text-xs font-medium',
-                      dim.track === 'A' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'
+                      `bg-${getTrackInfo(dim.track).color}-100 text-${getTrackInfo(dim.track).color}-600`
                     ]"
                   >
-                    {{ dim.track }}赛道
+                    {{ getTrackInfo(dim.track).display_name }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-900">{{ dim.max_score }}</td>
                 <td class="px-4 py-3 text-sm text-gray-900">{{ dim.weight }}</td>
-                <td class="px-4 py-3">
-                  <button
-                    @click="deleteDimension(dim.id)"
-                    class="text-red-500 hover:text-red-600 text-sm"
-                  >
-                    删除
-                  </button>
+                <td class="px-4 py-3 space-x-2">
+                  <button @click="startEditDimension(dim)" class="text-blue-500 hover:text-blue-600 text-sm">编辑</button>
+                  <button @click="deleteDimension(dim.id)" class="text-red-500 hover:text-red-600 text-sm">删除</button>
                 </td>
               </tr>
             </tbody>
@@ -507,22 +778,15 @@
             全部
           </button>
           <button
-            @click="scoreDetailsTrackFilter = 'A'"
+            v-for="track in store.tracks"
+            :key="track.name"
+            @click="scoreDetailsTrackFilter = track.name"
             :class="[
               'px-3 py-1 rounded-full text-sm',
-              scoreDetailsTrackFilter === 'A' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
+              scoreDetailsTrackFilter === track.name ? `bg-${track.color}-500 text-white` : 'bg-gray-200 text-gray-600'
             ]"
           >
-            A赛道
-          </button>
-          <button
-            @click="scoreDetailsTrackFilter = 'B'"
-            :class="[
-              'px-3 py-1 rounded-full text-sm',
-              scoreDetailsTrackFilter === 'B' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
-            ]"
-          >
-            B赛道
+            {{ track.display_name }}
           </button>
         </div>
 
@@ -559,14 +823,14 @@
             <div
               :class="[
                 'px-4 py-3 flex items-center justify-between',
-                contestant.track === 'A' ? 'bg-orange-50' : 'bg-purple-50'
+                `bg-${getTrackInfo(contestant.track).color}-50`
               ]"
             >
               <div class="flex items-center gap-3">
                 <span
                   :class="[
                     'px-2 py-1 rounded text-xs font-bold',
-                    contestant.track === 'A' ? 'bg-orange-500 text-white' : 'bg-purple-500 text-white'
+                    `bg-${getTrackInfo(contestant.track).color}-500 text-white`
                   ]"
                 >
                   {{ contestant.track }}
@@ -666,12 +930,41 @@ onMounted(async () => {
   if (saved === 'true') {
     isAuthenticated.value = true
     await Promise.all([
+      store.fetchTracks(),
       store.fetchJudges(),
       store.fetchContestants(),
-      store.fetchDimensions()
+      store.fetchDimensions(),
+      store.fetchScoreConfig()
     ])
+    initTrackDefaults()
+    initConfigDefaults()
   }
 })
+
+// 初始化配置默认值
+function initConfigDefaults() {
+  editingConfig.value = { ...store.scoreConfig }
+}
+
+// 保存评分配置
+async function saveConfig() {
+  try {
+    await store.updateScoreConfig(editingConfig.value)
+    alert('配置保存成功')
+  } catch (err) {
+    alert('保存失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+// 初始化赛道默认值
+function initTrackDefaults() {
+  if (store.tracks.length > 0) {
+    const firstTrack = store.tracks[0].name
+    newContestantTrack.value = firstTrack
+    batchImportTrack.value = firstTrack
+    newDimension.value.track = firstTrack
+  }
+}
 
 async function login() {
   if (password.value === ADMIN_PASSWORD) {
@@ -681,10 +974,14 @@ async function login() {
     password.value = ''
     // 登录成功后加载数据
     await Promise.all([
+      store.fetchTracks(),
       store.fetchJudges(),
       store.fetchContestants(),
-      store.fetchDimensions()
+      store.fetchDimensions(),
+      store.fetchScoreConfig()
     ])
+    initTrackDefaults()
+    initConfigDefaults()
   } else {
     loginError.value = '密码错误，请重试'
   }
@@ -696,31 +993,52 @@ function logout() {
 }
 
 const tabs = [
+  { key: 'config', label: '评分配置' },
+  { key: 'tracks', label: '赛道管理' },
   { key: 'judges', label: '评分者管理' },
   { key: 'contestants', label: '被评分者管理' },
   { key: 'dimensions', label: '评分维度' },
   { key: 'scoreDetails', label: '评分详情' }
 ]
 
-const activeTab = ref('judges')
+const activeTab = ref('config')
 const newJudgeName = ref('')
 const newContestantName = ref('')
-const newContestantTrack = ref('A')
+const newContestantTrack = ref('')
 const contestantFilter = ref('')
 const dimensionFilter = ref('')
 const showDimensionForm = ref(false)
 const showBatchImport = ref(false)
 const batchImportText = ref('')
-const batchImportTrack = ref('A')
+const batchImportTrack = ref('')
 const showJudgeBatchImport = ref(false)
 const judgeBatchImportText = ref('')
 const showDimensionBatchImport = ref(false)
 const dimensionBatchImportText = ref('')
 const newDimension = ref({
   name: '',
-  track: 'A',
-  max_score: 10,
+  track: '',
   weight: 1.0
+})
+
+// 赛道管理相关
+const newTrackName = ref('')
+const newTrackDisplayName = ref('')
+const newTrackColor = ref('blue')
+const trackColors = ['orange', 'purple', 'blue', 'green', 'red', 'pink', 'yellow', 'indigo']
+
+// 编辑状态
+const editingTrack = ref(null)
+const editingJudge = ref(null)
+const editingContestant = ref(null)
+const editingDimension = ref(null)
+
+// 评分配置
+const editingConfig = ref({
+  professional_weight: 70,
+  public_weight: 30,
+  default_max_score: 5,
+  show_public_vote_realtime: 1
 })
 
 // 评分详情相关
@@ -743,6 +1061,61 @@ const filteredScoreDetails = computed(() => {
   return scoreDetails.value.contestants.filter(c => c.track === scoreDetailsTrackFilter.value)
 })
 
+// 获取赛道信息
+function getTrackInfo(trackName) {
+  const track = store.tracks.find(t => t.name === trackName)
+  return track || { name: trackName, display_name: trackName + '赛道', color: 'gray' }
+}
+
+// 赛道操作
+async function addTrack() {
+  if (!newTrackName.value.trim() || !newTrackDisplayName.value.trim()) return
+  try {
+    await axios.post('/api/tracks', {
+      name: newTrackName.value.trim().toUpperCase(),
+      display_name: newTrackDisplayName.value.trim(),
+      color: newTrackColor.value
+    })
+    newTrackName.value = ''
+    newTrackDisplayName.value = ''
+    newTrackColor.value = 'blue'
+    await store.fetchTracks()
+    initTrackDefaults()
+  } catch (err) {
+    alert('添加失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+async function deleteTrack(id) {
+  if (!confirm('确定删除该赛道？')) return
+  try {
+    await axios.delete(`/api/tracks/${id}`)
+    await store.fetchTracks()
+    initTrackDefaults()
+  } catch (err) {
+    alert('删除失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+function startEditTrack(track) {
+  editingTrack.value = { ...track }
+}
+
+async function saveEditTrack() {
+  if (!editingTrack.value) return
+  try {
+    await axios.put(`/api/tracks/${editingTrack.value.id}`, editingTrack.value)
+    editingTrack.value = null
+    await store.fetchTracks()
+  } catch (err) {
+    alert('保存失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+function cancelEditTrack() {
+  editingTrack.value = null
+}
+
 // 评分者操作
 async function addJudge() {
   if (!newJudgeName.value.trim()) return
@@ -755,6 +1128,25 @@ async function deleteJudge(id) {
   if (!confirm('确定删除该评分者？')) return
   await axios.delete(`/api/judges/${id}`)
   await store.fetchJudges()
+}
+
+function startEditJudge(judge) {
+  editingJudge.value = { ...judge }
+}
+
+async function saveEditJudge() {
+  if (!editingJudge.value) return
+  try {
+    await axios.put(`/api/judges/${editingJudge.value.id}`, { name: editingJudge.value.name })
+    editingJudge.value = null
+    await store.fetchJudges()
+  } catch (err) {
+    alert('保存失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+function cancelEditJudge() {
+  editingJudge.value = null
 }
 
 async function batchImportJudges() {
@@ -789,6 +1181,25 @@ async function deleteContestant(id) {
   await store.fetchContestants()
 }
 
+function startEditContestant(contestant) {
+  editingContestant.value = { ...contestant }
+}
+
+async function saveEditContestant() {
+  if (!editingContestant.value) return
+  try {
+    await axios.put(`/api/contestants/${editingContestant.value.id}`, editingContestant.value)
+    editingContestant.value = null
+    await store.fetchContestants()
+  } catch (err) {
+    alert('保存失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+function cancelEditContestant() {
+  editingContestant.value = null
+}
+
 async function batchImportContestants() {
   const names = batchImportText.value.split('\n').map(n => n.trim()).filter(n => n)
   if (names.length === 0) return
@@ -811,7 +1222,7 @@ async function batchImportContestants() {
 async function addDimension() {
   if (!newDimension.value.name.trim()) return
   await axios.post('/api/dimensions', newDimension.value)
-  newDimension.value = { name: '', track: 'A', max_score: 10, weight: 1.0 }
+  newDimension.value = { name: '', track: store.tracks[0]?.name || 'A', weight: 1.0 }
   showDimensionForm.value = false
   await store.fetchDimensions()
 }
@@ -822,20 +1233,39 @@ async function deleteDimension(id) {
   await store.fetchDimensions()
 }
 
+function startEditDimension(dim) {
+  editingDimension.value = { ...dim }
+}
+
+async function saveEditDimension() {
+  if (!editingDimension.value) return
+  try {
+    await axios.put(`/api/dimensions/${editingDimension.value.id}`, editingDimension.value)
+    editingDimension.value = null
+    await store.fetchDimensions()
+  } catch (err) {
+    alert('保存失败：' + (err.response?.data?.error || err.message))
+  }
+}
+
+function cancelEditDimension() {
+  editingDimension.value = null
+}
+
 async function batchImportDimensions() {
   const lines = dimensionBatchImportText.value.split('\n').map(l => l.trim()).filter(l => l)
   if (lines.length === 0) return
 
+  const validTracks = store.tracks.map(t => t.name)
   const items = []
   for (const line of lines) {
     const parts = line.split(/\s+/)
     if (parts.length >= 2) {
       const track = parts[0].toUpperCase()
       const name = parts[1]
-      const max_score = parts[2] ? parseFloat(parts[2]) : 10
-      const weight = parts[3] ? parseFloat(parts[3]) : 1.0
-      if (['A', 'B'].includes(track) && name) {
-        items.push({ track, name, max_score, weight })
+      const weight = parts[2] ? parseFloat(parts[2]) : 1.0
+      if (validTracks.includes(track) && name) {
+        items.push({ track, name, weight })
       }
     }
   }

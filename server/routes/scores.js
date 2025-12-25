@@ -3,6 +3,12 @@ const { prepare, saveDatabase, getDb } = require('../db');
 
 const router = express.Router();
 
+// 获取评分配置
+function getScoreConfig() {
+  const config = prepare('SELECT * FROM score_config WHERE id = 1').get();
+  return config || { professional_weight: 70, public_weight: 30, default_max_score: 5 };
+}
+
 // 提交评分
 router.post('/', (req, res) => {
   const { judge_id, contestant_id, scores, is_anonymous = false } = req.body;
@@ -72,8 +78,13 @@ router.get('/rankings', (req, res) => {
 
 // 计算排名的函数（导出供 socket 使用）
 function calculateRankings(filterTrack = null) {
-  // 按赛道分组计算
-  const tracks = filterTrack ? [filterTrack] : ['A', 'B'];
+  // 获取评分配置
+  const config = getScoreConfig();
+  const totalConfigWeight = config.professional_weight + config.public_weight;
+
+  // 获取所有赛道
+  const allTracks = prepare('SELECT name FROM tracks ORDER BY order_num').all().map(t => t.name);
+  const tracks = filterTrack ? [filterTrack] : allTracks;
   const result = {};
 
   // 获取所有评分者
@@ -127,15 +138,23 @@ function calculateRankings(filterTrack = null) {
       const publicRatingAvg = publicRatingStats.avg_rating ? Math.round(publicRatingStats.avg_rating * 100) / 100 : 0;
       const publicRatingCount = publicRatingStats.count || 0;
 
-      // 计算加权总分
-      const totalWeight = dimensions.reduce((acc, d) => acc + d.weight, 0);
+      // 计算维度加权总分
+      const totalDimWeight = dimensions.reduce((acc, d) => acc + d.weight, 0);
       const weightedSum = dimensionScores.reduce((acc, ds) => {
         return acc + (ds.avg_score * ds.weight);
       }, 0);
 
-      // 专业评分 + 大众点评平均分
-      const professionalScore = totalWeight > 0 ? weightedSum / totalWeight * 10 : 0;
-      const totalScore = professionalScore + publicRatingAvg;
+      // 专业评分（按维度权重计算平均分）
+      const maxScore = config.default_max_score; // 使用配置的满分值
+      const professionalScore = totalDimWeight > 0 ? (weightedSum / totalDimWeight) : 0;
+
+      // 总分计算：
+      // 专业得分 = (评委平均分 / 满分) × 专业权重
+      // 大众得分 = (大众平均分 / 满分) × 大众权重
+      // 总分 = 专业得分 + 大众得分
+      const professionalContribution = (professionalScore / maxScore) * config.professional_weight;
+      const publicContribution = (publicRatingAvg / maxScore) * config.public_weight;
+      const totalScore = professionalContribution + publicContribution;
 
       return {
         id: contestant.id,
@@ -143,11 +162,21 @@ function calculateRankings(filterTrack = null) {
         track: contestant.track,
         order_num: contestant.order_num,
         dimension_scores: dimensionScores,
+        // 原始分数（满分为 default_max_score）
         professional_score: Math.round(professionalScore * 100) / 100,
         public_rating_avg: publicRatingAvg,
         public_rating_count: publicRatingCount,
+        // 折算后的分数（专业得分最高为 professional_weight，大众得分最高为 public_weight）
+        professional_contribution: Math.round(professionalContribution * 100) / 100,
+        public_contribution: Math.round(publicContribution * 100) / 100,
         total_score: Math.round(totalScore * 100) / 100,
-        scored_judge_ids: scoredJudges
+        scored_judge_ids: scoredJudges,
+        // 额外返回配置信息
+        config: {
+          professional_weight: config.professional_weight,
+          public_weight: config.public_weight,
+          default_max_score: config.default_max_score
+        }
       };
     });
 
@@ -162,7 +191,8 @@ function calculateRankings(filterTrack = null) {
     result[track] = {
       contestants: rankings,
       dimensions: dimensions,
-      judges: allJudges
+      judges: allJudges,
+      config: config
     };
   }
 

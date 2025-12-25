@@ -93,6 +93,50 @@ async function initDatabase() {
     )
   `);
 
+  // 赛道表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      display_name TEXT NOT NULL,
+      color TEXT DEFAULT 'blue',
+      order_num INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 初始化默认赛道（如果没有的话）
+  const existingTracks = prepare('SELECT COUNT(*) as count FROM tracks').get();
+  if (existingTracks.count === 0) {
+    db.run("INSERT INTO tracks (name, display_name, color, order_num) VALUES ('A', 'A赛道', 'orange', 1)");
+    db.run("INSERT INTO tracks (name, display_name, color, order_num) VALUES ('B', 'B赛道', 'purple', 2)");
+  }
+
+  // 评分配置表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS score_config (
+      id INTEGER PRIMARY KEY,
+      professional_weight REAL DEFAULT 70,
+      public_weight REAL DEFAULT 30,
+      default_max_score INTEGER DEFAULT 5,
+      show_public_vote_realtime INTEGER DEFAULT 1,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 添加 show_public_vote_realtime 字段（兼容旧数据库）
+  try {
+    db.run('SELECT show_public_vote_realtime FROM score_config LIMIT 1');
+  } catch (e) {
+    db.run('ALTER TABLE score_config ADD COLUMN show_public_vote_realtime INTEGER DEFAULT 1');
+  }
+
+  // 初始化默认配置（如果没有的话）
+  const existingConfig = prepare('SELECT COUNT(*) as count FROM score_config').get();
+  if (existingConfig.count === 0) {
+    db.run("INSERT INTO score_config (id, professional_weight, public_weight, default_max_score) VALUES (1, 70, 30, 5)");
+  }
+
   saveDatabase();
   console.log('Database initialized');
   return db;

@@ -43,6 +43,8 @@ async function startServer() {
   const dimensionsRouter = require('./routes/dimensions');
   const scoresRouter = require('./routes/scores');
   const publicRatingsRouter = require('./routes/public-ratings');
+  const tracksRouter = require('./routes/tracks');
+  const configRouter = require('./routes/config');
   const { initSocket, broadcastRankings } = require('./socket');
 
   // 广播中间件（必须在路由之前注册）
@@ -70,9 +72,14 @@ async function startServer() {
   app.use('/api/dimensions', dimensionsRouter);
   app.use('/api/scores', scoresRouter);
   app.use('/api/public-ratings', publicRatingsRouter);
+  app.use('/api/tracks', tracksRouter);
+  app.use('/api/config', configRouter);
 
   // 初始化 Socket.IO
   initSocket(io);
+
+  // 设置 public-ratings 的 Socket.IO 引用
+  publicRatingsRouter.setIO(io);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, '0.0.0.0', () => {
