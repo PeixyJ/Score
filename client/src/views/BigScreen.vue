@@ -1,5 +1,13 @@
 <template>
   <div class="min-h-screen relative overflow-hidden text-white p-6">
+    <!-- 倒计时紧急红光效果 -->
+    <Transition name="urgent-glow">
+      <div
+        v-if="isCountdownUrgent"
+        class="absolute inset-0 z-20 pointer-events-none urgent-red-glow"
+      ></div>
+    </Transition>
+
     <!-- 流动背景 -->
     <div class="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <!-- 流动光效 -->
@@ -16,12 +24,316 @@
     <!-- 粒子容器 -->
     <div class="particles-container absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
 
+    <!-- 实时语音识别展示层 -->
+    <Transition name="speech-overlay">
+      <div
+        v-if="isRecording || (speechText && showSpeechOverlay)"
+        class="fixed inset-x-0 bottom-0 z-40 flex items-end justify-center pointer-events-none pb-6"
+      >
+        <!-- 语音识别内容区域 -->
+        <div class="relative w-full max-w-5xl mx-8 pointer-events-auto">
+          <!-- 顶部状态栏 -->
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <!-- 录音状态指示器 -->
+              <div v-if="isRecording && recognitionStatus === 'connected'" class="flex items-center gap-2 px-4 py-2 bg-green-500/20 rounded-full border border-green-500/50">
+                <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                <span class="text-green-400 font-medium">正在识别语音...</span>
+              </div>
+              <div v-else-if="isRecording && recognitionStatus === 'connecting'" class="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 rounded-full border border-yellow-500/50">
+                <svg class="w-4 h-4 text-yellow-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span class="text-yellow-400 font-medium">连接中...</span>
+              </div>
+              <div v-else-if="isRecording && recognitionStatus === 'error'" class="flex items-center gap-2 px-4 py-2 bg-red-500/20 rounded-full border border-red-500/50">
+                <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+                <span class="text-red-400 font-medium">连接错误，重试中...</span>
+              </div>
+              <div v-else class="flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full border border-purple-500/50">
+                <svg class="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/>
+                </svg>
+                <span class="text-purple-400 font-medium">语音识别完成</span>
+              </div>
+
+              <!-- 当前被评分者 -->
+              <div v-if="currentContestantName" class="px-4 py-2 bg-blue-500/20 rounded-full border border-blue-500/50">
+                <span class="text-blue-400">被评分者：</span>
+                <span class="text-white font-bold">{{ currentContestantName }}</span>
+              </div>
+            </div>
+
+            <!-- 关闭按钮（始终显示） -->
+            <button
+              @click="closeSpeechOverlayAndStop"
+              class="p-2 bg-red-500/20 hover:bg-red-500/40 border border-red-500/50 rounded-full transition-colors pointer-events-auto"
+              title="关闭并停止识别"
+            >
+              <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 语音识别文字展示区域 -->
+          <div class="bg-slate-900/90 rounded-2xl border border-purple-500/30 shadow-2xl shadow-purple-500/20 overflow-hidden">
+            <!-- 渐变顶边 -->
+            <div class="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
+
+            <!-- 文字内容 -->
+            <div ref="speechTextContainer" class="p-8 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
+              <p
+                v-if="speechText || interimText"
+                class="text-2xl leading-relaxed text-white speech-text-animate"
+              >
+                <!-- 已确认的文字 -->
+                <span>{{ speechText }}</span>
+                <!-- 正在识别的临时文字（灰色显示） -->
+                <span v-if="interimText" class="text-purple-300/70">{{ interimText }}</span>
+                <!-- 闪烁光标 -->
+                <span v-if="isRecording" class="inline-block w-0.5 h-7 bg-purple-400 animate-blink ml-1"></span>
+              </p>
+              <p v-else class="text-2xl text-gray-500 text-center py-8">
+                <span v-if="isRecording" class="flex items-center justify-center gap-3">
+                  <svg class="w-8 h-8 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                  </svg>
+                  等待语音输入...
+                </span>
+              </p>
+            </div>
+
+            <!-- 底部操作栏 -->
+            <div class="px-8 py-4 bg-white/5 border-t border-white/10 flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="text-sm text-gray-400">
+                  已识别 {{ speechText.length + interimText.length }} 个字符
+                  <span v-if="interimText" class="text-purple-400 ml-2">(识别中...)</span>
+                </div>
+                <button
+                  v-if="speechText"
+                  @click="clearSpeechText"
+                  class="px-3 py-1.5 bg-gray-500/30 hover:bg-gray-500/50 text-gray-300 text-sm rounded-lg transition-colors"
+                >
+                  清空
+                </button>
+              </div>
+              <div class="flex items-center gap-3">
+                <!-- AI 评价按钮 - 主要操作 -->
+                <button
+                  v-if="speechText && !aiScoring"
+                  @click="submitAIScoreFromOverlay"
+                  class="px-8 py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 hover:from-purple-600 hover:via-pink-600 hover:to-purple-600 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-purple-500/40 flex items-center gap-2 animate-pulse-subtle"
+                >
+                  <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/>
+                  </svg>
+                  AI 评价
+                </button>
+                <div v-if="aiScoring" class="flex items-center gap-3 px-6 py-3 bg-purple-500/20 rounded-xl border border-purple-500/50">
+                  <svg class="w-6 h-6 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="text-purple-300 font-medium">AI 正在评价中...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 声波动画（录音时显示） -->
+          <div v-if="isRecording" class="flex justify-center items-end mt-4 gap-1 h-10">
+            <div v-for="i in 12" :key="i" class="sound-wave-bar" :style="{ animationDelay: `${i * 0.1}s` }"></div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- AI 评分结果弹窗 -->
+    <Transition name="ai-result-modal">
+      <div
+        v-if="showAIResultModal && aiResult"
+        class="fixed inset-0 z-50 flex items-center justify-center p-8"
+      >
+        <!-- 背景遮罩 -->
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="closeAIResultModal"></div>
+
+        <!-- 弹窗内容 -->
+        <div class="relative bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900 rounded-3xl border border-purple-500/30 shadow-2xl shadow-purple-500/20 w-full max-w-2xl overflow-hidden ai-result-card">
+          <!-- 顶部装饰条 -->
+          <div class="h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"></div>
+
+          <!-- 头部 -->
+          <div class="px-8 py-6 border-b border-white/10 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-white">AI 评价结果</h2>
+                <p class="text-purple-300">{{ aiResult.contestant_name }}</p>
+              </div>
+            </div>
+            <button
+              @click="closeAIResultModal"
+              class="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 分数展示 -->
+          <div class="px-8 py-8 flex justify-center">
+            <div class="relative">
+              <!-- 光晕效果 -->
+              <div class="absolute inset-0 blur-3xl bg-gradient-to-r from-purple-500/30 to-pink-500/30 rounded-full scale-150"></div>
+              <!-- 分数圆环 -->
+              <div class="relative w-48 h-48 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-4 border-purple-500/50 flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 score-number">
+                    {{ aiResult.score }}
+                  </div>
+                  <div class="text-purple-300 text-lg">分</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI 评价内容 -->
+          <div class="px-8 pb-8">
+            <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h3 class="text-lg font-semibold text-purple-300 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                AI 评语
+              </h3>
+              <p class="text-white leading-relaxed text-lg">{{ aiResult.feedback || '暂无评语' }}</p>
+            </div>
+
+            <!-- 维度评分（如果有） -->
+            <div v-if="aiResult.dimension_scores" class="mt-4 bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h3 class="text-lg font-semibold text-purple-300 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                维度评分
+              </h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div
+                  v-for="(score, name) in (typeof aiResult.dimension_scores === 'string' ? JSON.parse(aiResult.dimension_scores) : aiResult.dimension_scores)"
+                  :key="name"
+                  class="flex items-center justify-between p-3 bg-white/5 rounded-lg"
+                >
+                  <span class="text-gray-300">{{ name }}</span>
+                  <span class="text-purple-400 font-bold">{{ score }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部按钮 -->
+          <div class="px-8 py-6 border-t border-white/10 flex justify-center">
+            <button
+              @click="closeAIResultModal"
+              class="px-10 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-purple-500/30"
+            >
+              确定
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 内容层 -->
     <div class="relative z-10">
-    <!-- 标题 -->
-    <header class="text-center mb-4">
-      <h1 class="text-4xl font-bold mb-1">实时评分排行榜</h1>
-      <p class="text-blue-300">分数实时更新中...</p>
+    <!-- 标题栏 -->
+    <header class="flex items-center justify-between mb-4 px-4">
+      <!-- 左侧占位 -->
+      <div class="w-72"></div>
+
+      <!-- 中间标题 -->
+      <div class="text-center">
+        <h1 class="text-4xl font-bold mb-1">实时评分排行榜</h1>
+        <p class="text-blue-300">分数实时更新中...</p>
+      </div>
+
+      <!-- 右侧倒计时器 -->
+      <div class="w-72 flex justify-end">
+        <div v-if="store.scoreConfig.countdown_minutes > 0" class="bg-white/10 backdrop-blur rounded-xl px-4 py-2 flex items-center gap-3 border border-white/20">
+          <!-- 进度环 -->
+          <div class="relative w-14 h-14">
+            <svg class="w-14 h-14 transform -rotate-90" viewBox="0 0 100 100">
+              <circle
+                cx="50" cy="50" r="42"
+                fill="none"
+                stroke="rgba(255,255,255,0.2)"
+                stroke-width="8"
+              />
+              <circle
+                cx="50" cy="50" r="42"
+                fill="none"
+                :stroke="countdownSeconds <= 60 ? '#ef4444' : countdownSeconds <= 180 ? '#f59e0b' : '#10b981'"
+                stroke-width="8"
+                stroke-linecap="round"
+                :stroke-dasharray="264"
+                :stroke-dashoffset="264 - (264 * (100 - countdownProgress) / 100)"
+                class="transition-all duration-1000"
+              />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span
+                :class="[
+                  'text-sm font-mono font-bold',
+                  countdownSeconds <= 60 ? 'text-red-400' : countdownSeconds <= 180 ? 'text-yellow-400' : 'text-green-400'
+                ]"
+              >
+                {{ formattedCountdown }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 控制按钮 -->
+          <div class="flex items-center gap-1">
+            <button
+              v-if="!isCountdownRunning"
+              @click="startCountdown"
+              :disabled="countdownSeconds <= 0 && !isCountdownPaused"
+              class="w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              title="开始"
+            >
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+            <button
+              v-else
+              @click="pauseCountdown"
+              class="w-8 h-8 rounded-full bg-yellow-500 hover:bg-yellow-600 flex items-center justify-center transition-colors"
+              title="暂停"
+            >
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              </svg>
+            </button>
+            <button
+              @click="resetCountdown"
+              class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              title="重置"
+            >
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <!-- 在线状态面板 -->
@@ -206,16 +518,40 @@
           </div>
         </div>
 
-        <!-- 实时大众投票动态 -->
-        <div v-if="store.scoreConfig.show_public_vote_realtime" class="flex-1 mt-4 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex flex-col">
-          <div class="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-            <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            <h3 class="text-lg font-bold text-white">实时大众投票</h3>
-            <span class="ml-auto text-xs text-gray-400">{{ store.publicVoteActivities.length }} 条记录</span>
+        <!-- 右下角面板：大众投票 / AI 评分 切换 -->
+        <div class="flex-1 mt-4 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex flex-col">
+          <!-- 切换标签 -->
+          <div class="flex items-center border-b border-white/10">
+            <button
+              v-if="store.scoreConfig.show_public_vote_realtime"
+              @click="rightPanelMode = 'public'"
+              :class="[
+                'flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors',
+                rightPanelMode === 'public' ? 'bg-pink-500/20 text-pink-400' : 'text-gray-400 hover:text-white'
+              ]"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              <span class="text-sm font-medium">大众投票</span>
+            </button>
+            <button
+              v-if="store.scoreConfig.ai_scoring_enabled"
+              @click="rightPanelMode = 'ai'"
+              :class="[
+                'flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors',
+                rightPanelMode === 'ai' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-400 hover:text-white'
+              ]"
+            >
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2zm-4 9a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2zm-4 4a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+              </svg>
+              <span class="text-sm font-medium">AI 评分</span>
+            </button>
           </div>
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+
+          <!-- 大众投票面板 -->
+          <div v-if="rightPanelMode === 'public'" class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
             <TransitionGroup name="vote-activity" tag="div" class="space-y-2">
               <div
                 v-for="activity in store.publicVoteActivities"
@@ -232,14 +568,98 @@
                 </div>
               </div>
             </TransitionGroup>
-            <div v-if="store.publicVoteActivities.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-sm">
+            <div v-if="store.publicVoteActivities.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-sm py-8">
               等待投票中...
             </div>
           </div>
-        </div>
 
-        <!-- 如果不显示实时投票，用空白填充对齐 -->
-        <div v-else class="flex-1"></div>
+          <!-- AI 评分面板 -->
+          <div v-else-if="rightPanelMode === 'ai'" class="flex-1 flex flex-col overflow-hidden">
+            <!-- 语音识别控制 -->
+            <div class="p-3 border-b border-white/10">
+              <!-- 选择被评分者 -->
+              <div class="mb-3">
+                <label class="text-xs text-gray-400 mb-1 block">选择被评分者</label>
+                <select
+                  v-model="aiSelectedContestant"
+                  class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="" disabled>请选择...</option>
+                  <option v-for="c in store.contestants" :key="c.id" :value="c.id">
+                    {{ c.name }} ({{ c.track }}赛道)
+                  </option>
+                </select>
+              </div>
+
+              <!-- 语音识别状态 -->
+              <div class="flex items-center gap-2">
+                <button
+                  @click="toggleSpeechRecognition"
+                  :disabled="!aiSelectedContestant"
+                  :class="[
+                    'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all',
+                    isRecording
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : aiSelectedContestant
+                        ? 'bg-purple-500 text-white hover:bg-purple-600'
+                        : 'bg-gray-500/50 text-gray-400 cursor-not-allowed'
+                  ]"
+                >
+                  <svg v-if="isRecording" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="2"/>
+                  </svg>
+                  <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                  </svg>
+                  {{ isRecording ? '停止录音' : '开始语音识别' }}
+                </button>
+                <button
+                  v-if="speechText && !isRecording && !aiScoring"
+                  @click="submitAIScore"
+                  class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  AI 评分
+                </button>
+              </div>
+
+              <!-- 语音识别文本 -->
+              <div v-if="speechText || isRecording" class="mt-3 p-3 bg-black/30 rounded-lg max-h-24 overflow-y-auto">
+                <p class="text-xs text-gray-400 mb-1">识别文本：</p>
+                <p class="text-sm text-white">{{ speechText || '正在识别...' }}</p>
+              </div>
+
+              <!-- AI 评分中 -->
+              <div v-if="aiScoring" class="mt-3 flex items-center justify-center gap-2 text-purple-400">
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm">AI 正在评分...</span>
+              </div>
+            </div>
+
+            <!-- AI 评分记录列表 -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+              <TransitionGroup name="vote-activity" tag="div" class="space-y-2">
+                <div
+                  v-for="score in store.aiScoreActivities"
+                  :key="score.id"
+                  class="p-3 bg-purple-500/10 rounded-lg border border-purple-500/20"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-white font-medium">{{ score.contestant_name }}</span>
+                    <span class="text-xl font-bold text-purple-400">{{ score.score }}分</span>
+                  </div>
+                  <p class="text-xs text-gray-400 mb-2">{{ score.feedback }}</p>
+                  <p class="text-xs text-gray-500 truncate">{{ score.speech_text }}</p>
+                </div>
+              </TransitionGroup>
+              <div v-if="store.aiScoreActivities.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-sm py-8">
+                暂无 AI 评分记录
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 右侧：完整排名 -->
@@ -428,6 +848,413 @@ const autoPlayEnabled = ref(true)
 let autoPlayInterval = null
 const AUTO_PLAY_DELAY = 5000 // 5秒自动切换
 
+// 倒计时状态
+const countdownSeconds = ref(0)
+const isCountdownRunning = ref(false)
+const isCountdownPaused = ref(false)
+let countdownInterval = null
+
+// 右侧面板模式：'public' | 'ai'
+const rightPanelMode = ref('public')
+
+// AI 评分相关状态
+const aiSelectedContestant = ref('')
+const isRecording = ref(false)
+const speechText = ref('')
+const interimText = ref('') // 临时识别结果（实时显示）
+const aiScoring = ref(false)
+const showSpeechOverlay = ref(false)
+const recognitionStatus = ref('idle') // idle | connecting | connected | error
+const showAIResultModal = ref(false) // AI评分结果弹窗
+const aiResult = ref(null) // AI评分结果数据
+const speechTextContainer = ref(null) // 语音文本容器引用
+let recognition = null
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 10
+let reconnectTimer = null
+let lastActivityTime = 0
+let activityCheckTimer = null
+
+// 当前被评分者名称
+const currentContestantName = computed(() => {
+  if (!aiSelectedContestant.value) return ''
+  const contestant = store.contestants.find(c => c.id === aiSelectedContestant.value)
+  return contestant?.name || ''
+})
+
+// 监听语音文本变化，自动滚动到底部
+watch([speechText, interimText], () => {
+  nextTick(() => {
+    if (speechTextContainer.value) {
+      speechTextContainer.value.scrollTo({
+        top: speechTextContainer.value.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  })
+})
+
+// 初始化语音识别
+function initSpeechRecognition() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    console.warn('浏览器不支持 Web Speech API')
+    return null
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  const rec = new SpeechRecognition()
+
+  rec.lang = 'zh-CN'
+  rec.continuous = true
+  rec.interimResults = true
+  rec.maxAlternatives = 1
+
+  rec.onstart = () => {
+    console.log('语音识别已启动')
+    recognitionStatus.value = 'connected'
+    reconnectAttempts = 0
+    lastActivityTime = Date.now()
+  }
+
+  rec.onaudiostart = () => {
+    console.log('音频捕获开始')
+    lastActivityTime = Date.now()
+  }
+
+  rec.onresult = (event) => {
+    lastActivityTime = Date.now()
+    let finalTranscript = ''
+    let currentInterim = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript
+      } else {
+        currentInterim += transcript
+      }
+    }
+
+    // 实时显示临时结果
+    interimText.value = currentInterim
+
+    // 确认的文字追加到正式文本
+    if (finalTranscript) {
+      speechText.value += finalTranscript
+      interimText.value = '' // 清空临时文本
+    }
+  }
+
+  rec.onerror = (event) => {
+    console.error('语音识别错误:', event.error)
+    lastActivityTime = Date.now()
+
+    switch (event.error) {
+      case 'no-speech':
+        // 无语音输入，这是正常的，不需要处理
+        console.log('未检测到语音，继续监听...')
+        return
+      case 'audio-capture':
+        recognitionStatus.value = 'error'
+        console.error('无法捕获音频，请检查麦克风权限')
+        break
+      case 'not-allowed':
+        recognitionStatus.value = 'error'
+        console.error('麦克风权限被拒绝')
+        isRecording.value = false
+        return
+      case 'network':
+        recognitionStatus.value = 'error'
+        console.log('网络错误，将尝试重连...')
+        break
+      case 'aborted':
+        console.log('识别被中止')
+        break
+      default:
+        recognitionStatus.value = 'error'
+        console.log('其他错误:', event.error)
+    }
+  }
+
+  rec.onend = () => {
+    console.log('语音识别结束')
+
+    // 如果还在录音状态，自动重启
+    if (isRecording.value) {
+      attemptReconnect()
+    } else {
+      recognitionStatus.value = 'idle'
+    }
+  }
+
+  return rec
+}
+
+// 尝试重新连接
+function attemptReconnect() {
+  if (!isRecording.value) {
+    recognitionStatus.value = 'idle'
+    return
+  }
+
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.error('达到最大重连次数，停止识别')
+    recognitionStatus.value = 'error'
+    isRecording.value = false
+    return
+  }
+
+  reconnectAttempts++
+  recognitionStatus.value = 'connecting'
+  console.log(`尝试重连... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
+
+  // 清除之前的定时器
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+  }
+
+  // 延迟重连，避免频繁重启
+  const delay = Math.min(500 * reconnectAttempts, 3000)
+  reconnectTimer = setTimeout(() => {
+    if (!isRecording.value) return
+
+    try {
+      if (recognition) {
+        recognition.start()
+      }
+    } catch (e) {
+      console.error('重启语音识别失败:', e)
+      // 如果启动失败，继续尝试
+      attemptReconnect()
+    }
+  }, delay)
+}
+
+// 启动活动检查（防止识别静默停止）
+function startActivityCheck() {
+  stopActivityCheck()
+  lastActivityTime = Date.now()
+
+  activityCheckTimer = setInterval(() => {
+    if (!isRecording.value) {
+      stopActivityCheck()
+      return
+    }
+
+    const now = Date.now()
+    const inactiveTime = now - lastActivityTime
+
+    // 如果超过 30 秒没有活动，尝试重启
+    if (inactiveTime > 30000 && recognitionStatus.value === 'connected') {
+      console.log('长时间无活动，尝试重启识别...')
+      try {
+        recognition?.stop()
+      } catch (e) {
+        // 忽略错误
+      }
+    }
+  }, 5000)
+}
+
+// 停止活动检查
+function stopActivityCheck() {
+  if (activityCheckTimer) {
+    clearInterval(activityCheckTimer)
+    activityCheckTimer = null
+  }
+}
+
+// 切换语音识别
+function toggleSpeechRecognition() {
+  if (!aiSelectedContestant.value) return
+
+  if (isRecording.value) {
+    // 停止录音
+    stopActivityCheck()
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (recognition) {
+      try {
+        recognition.stop()
+      } catch (e) {
+        // 忽略错误
+      }
+    }
+    isRecording.value = false
+    recognitionStatus.value = 'idle'
+    // 保持展示层显示，等待用户操作
+    showSpeechOverlay.value = true
+  } else {
+    // 开始录音
+    speechText.value = ''
+    interimText.value = ''
+    showSpeechOverlay.value = true
+    reconnectAttempts = 0
+    recognitionStatus.value = 'connecting'
+
+    if (!recognition) {
+      recognition = initSpeechRecognition()
+    }
+    if (recognition) {
+      try {
+        recognition.start()
+        isRecording.value = true
+        startActivityCheck()
+      } catch (e) {
+        console.error('启动语音识别失败:', e)
+        recognitionStatus.value = 'error'
+        showSpeechOverlay.value = false
+      }
+    } else {
+      alert('您的浏览器不支持语音识别，请使用 Chrome 浏览器')
+      showSpeechOverlay.value = false
+    }
+  }
+}
+
+// 关闭语音识别展示层
+function closeSpeechOverlay() {
+  showSpeechOverlay.value = false
+  speechText.value = ''
+  interimText.value = ''
+}
+
+// 关闭并停止语音识别
+function closeSpeechOverlayAndStop() {
+  stopActivityCheck()
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (recognition && isRecording.value) {
+    try {
+      recognition.stop()
+    } catch (e) {
+      // 忽略错误
+    }
+  }
+  isRecording.value = false
+  recognitionStatus.value = 'idle'
+  showSpeechOverlay.value = false
+  speechText.value = ''
+  interimText.value = ''
+  reconnectAttempts = 0
+}
+
+// 清空语音文本
+function clearSpeechText() {
+  speechText.value = ''
+  interimText.value = ''
+}
+
+// 从展示层提交 AI 评分
+async function submitAIScoreFromOverlay() {
+  if (!aiSelectedContestant.value || !speechText.value.trim()) return
+
+  // 暂停语音识别
+  if (isRecording.value) {
+    pauseRecognition()
+  }
+
+  aiScoring.value = true
+
+  try {
+    const contestant = store.contestants.find(c => c.id === aiSelectedContestant.value)
+    const response = await store.submitAIScore(
+      aiSelectedContestant.value,
+      speechText.value,
+      contestant?.track || 'A'
+    )
+
+    // API返回 { success: true, data: scoreData }，从 data 中获取结果
+    const result = response.data || response
+
+    // 保存结果并显示结果弹窗
+    aiResult.value = {
+      score: result.score,
+      feedback: result.feedback,
+      dimension_scores: result.dimension_scores,
+      contestant_name: result.contestant_name || contestant?.name || '未知',
+      speech_text: speechText.value
+    }
+    showAIResultModal.value = true
+
+    // 清空语音文本
+    speechText.value = ''
+    interimText.value = ''
+  } catch (err) {
+    console.error('AI 评分失败:', err)
+    alert('AI 评分失败: ' + (err.response?.data?.error || err.message))
+  } finally {
+    aiScoring.value = false
+  }
+}
+
+// 暂停语音识别（不关闭弹窗）
+function pauseRecognition() {
+  stopActivityCheck()
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (recognition) {
+    try {
+      recognition.stop()
+    } catch (e) {
+      // 忽略错误
+    }
+  }
+  isRecording.value = false
+  recognitionStatus.value = 'idle'
+}
+
+// 关闭AI结果弹窗
+function closeAIResultModal() {
+  showAIResultModal.value = false
+  aiResult.value = null
+  // 同时关闭语音识别弹窗
+  showSpeechOverlay.value = false
+}
+
+// 提交 AI 评分（从右侧面板）
+async function submitAIScore() {
+  if (!aiSelectedContestant.value || !speechText.value.trim()) return
+
+  aiScoring.value = true
+
+  try {
+    const contestant = store.contestants.find(c => c.id === aiSelectedContestant.value)
+    const response = await store.submitAIScore(
+      aiSelectedContestant.value,
+      speechText.value,
+      contestant?.track || 'A'
+    )
+
+    // API返回 { success: true, data: scoreData }，从 data 中获取结果
+    const result = response.data || response
+
+    // 保存结果并显示结果弹窗
+    aiResult.value = {
+      score: result.score,
+      feedback: result.feedback,
+      dimension_scores: result.dimension_scores,
+      contestant_name: result.contestant_name || contestant?.name || '未知',
+      speech_text: speechText.value
+    }
+    showAIResultModal.value = true
+
+    // 清空语音文本
+    speechText.value = ''
+  } catch (err) {
+    console.error('AI 评分失败:', err)
+    alert('AI 评分失败: ' + (err.response?.data?.error || err.message))
+  } finally {
+    aiScoring.value = false
+  }
+}
+
 // 轮播控制函数
 function selectTrack(index) {
   currentTrackIndex.value = index
@@ -477,6 +1304,102 @@ function resetAutoPlay() {
     stopAutoPlay()
     startAutoPlay()
   }
+}
+
+// ========== 倒计时功能 ==========
+
+// 格式化倒计时显示
+const formattedCountdown = computed(() => {
+  const minutes = Math.floor(countdownSeconds.value / 60)
+  const seconds = countdownSeconds.value % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+})
+
+// 倒计时进度百分比
+const countdownProgress = computed(() => {
+  const totalSeconds = store.scoreConfig.countdown_minutes * 60
+  if (totalSeconds === 0) return 0
+  return ((totalSeconds - countdownSeconds.value) / totalSeconds) * 100
+})
+
+// 是否处于紧急状态（最后10秒）
+const isCountdownUrgent = computed(() => {
+  return isCountdownRunning.value && countdownSeconds.value > 0 && countdownSeconds.value <= 10
+})
+
+// 开始倒计时
+function startCountdown() {
+  if (countdownSeconds.value <= 0) {
+    // 如果已归零，重新初始化
+    countdownSeconds.value = store.scoreConfig.countdown_minutes * 60
+  }
+  if (countdownSeconds.value <= 0) return
+
+  isCountdownRunning.value = true
+  isCountdownPaused.value = false
+
+  countdownInterval = setInterval(() => {
+    if (countdownSeconds.value > 0) {
+      countdownSeconds.value--
+      // 最后10秒播放警告音
+      if (countdownSeconds.value <= 10 && countdownSeconds.value > 0) {
+        playCountdownWarningSound()
+      }
+      // 倒计时结束
+      if (countdownSeconds.value === 0) {
+        playCountdownEndSound()
+        stopCountdown()
+      }
+    }
+  }, 1000)
+}
+
+// 暂停倒计时
+function pauseCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+    countdownInterval = null
+  }
+  isCountdownPaused.value = true
+  isCountdownRunning.value = false
+}
+
+// 停止倒计时
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+    countdownInterval = null
+  }
+  isCountdownRunning.value = false
+  isCountdownPaused.value = false
+}
+
+// 重置倒计时
+function resetCountdown() {
+  stopCountdown()
+  countdownSeconds.value = store.scoreConfig.countdown_minutes * 60
+}
+
+// 倒计时警告音效
+function playCountdownWarningSound() {
+  if (!soundEnabled.value) return
+  playTone(880, 0.08, 'sine', 0.15)
+}
+
+// 倒计时结束音效
+function playCountdownEndSound() {
+  if (!soundEnabled.value) return
+  const melody = [
+    { freq: 784, dur: 0.15 },  // G5
+    { freq: 784, dur: 0.15 },  // G5
+    { freq: 784, dur: 0.15 },  // G5
+    { freq: 1047, dur: 0.4 },  // C6
+  ]
+  let time = 0
+  melody.forEach(note => {
+    setTimeout(() => playTone(note.freq, note.dur, 'square', 0.25), time)
+    time += note.dur * 600
+  })
 }
 
 // 所有赛道信息
@@ -755,11 +1678,31 @@ function getTrackInfo(trackName) {
 let refreshInterval = null
 
 onMounted(async () => {
-  // 加载赛道数据和评分配置
+  // 加载赛道数据、评分配置和选手数据
   await Promise.all([
     store.fetchTracks(),
-    store.fetchScoreConfig()
+    store.fetchScoreConfig(),
+    store.fetchContestants()
   ])
+
+  // 根据配置设置默认的右侧面板模式
+  if (store.scoreConfig.ai_scoring_enabled && !store.scoreConfig.show_public_vote_realtime) {
+    rightPanelMode.value = 'ai'
+  } else if (store.scoreConfig.show_public_vote_realtime) {
+    rightPanelMode.value = 'public'
+  } else if (store.scoreConfig.ai_scoring_enabled) {
+    rightPanelMode.value = 'ai'
+  }
+
+  // 如果开启了 AI 评分，加载 AI 评分记录
+  if (store.scoreConfig.ai_scoring_enabled) {
+    store.fetchLatestAIScores()
+  }
+
+  // 初始化倒计时
+  if (store.scoreConfig.countdown_minutes > 0) {
+    countdownSeconds.value = store.scoreConfig.countdown_minutes * 60
+  }
 
   // 初始化 Socket 连接
   store.initSocket()
@@ -784,6 +1727,24 @@ onUnmounted(() => {
   }
   // 停止自动轮播
   stopAutoPlay()
+  // 停止倒计时
+  stopCountdown()
+  // 停止活动检查
+  stopActivityCheck()
+  // 清理重连定时器
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  // 停止语音识别
+  if (recognition) {
+    try {
+      recognition.stop()
+    } catch (e) {
+      // 忽略错误
+    }
+    recognition = null
+  }
 })
 
 function getTop3BgClass(index, color) {
@@ -1177,5 +2138,164 @@ function getRankBadgeClass(index) {
 @keyframes twinkle {
   from { opacity: 0.5; transform: scale(0.8); }
   to { opacity: 1; transform: scale(1.2); }
+}
+
+/* ========== 语音识别展示层动效 ========== */
+
+/* 展示层进入/离开动画 */
+.speech-overlay-enter-active,
+.speech-overlay-leave-active {
+  transition: all 0.3s ease;
+}
+
+.speech-overlay-enter-from,
+.speech-overlay-leave-to {
+  opacity: 0;
+  transform: translateY(100px);
+}
+
+/* 光标闪烁动画 */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+/* 语音文字样式 */
+.speech-text-animate {
+  /* 移除动画，避免抖动 */
+}
+
+/* 声波动画条 */
+.sound-wave-bar {
+  width: 4px;
+  height: 8px;
+  background: linear-gradient(to top, #a855f7, #ec4899);
+  border-radius: 2px;
+  animation: soundWave 0.8s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+@keyframes soundWave {
+  0%, 100% {
+    transform: scaleY(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(5);
+    opacity: 1;
+  }
+}
+
+/* 不同条的延迟，形成波浪效果 */
+.sound-wave-bar:nth-child(1) { animation-delay: 0s; }
+.sound-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.sound-wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.sound-wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.sound-wave-bar:nth-child(5) { animation-delay: 0.4s; }
+.sound-wave-bar:nth-child(6) { animation-delay: 0.5s; }
+.sound-wave-bar:nth-child(7) { animation-delay: 0.4s; }
+.sound-wave-bar:nth-child(8) { animation-delay: 0.3s; }
+.sound-wave-bar:nth-child(9) { animation-delay: 0.2s; }
+.sound-wave-bar:nth-child(10) { animation-delay: 0.1s; }
+.sound-wave-bar:nth-child(11) { animation-delay: 0s; }
+.sound-wave-bar:nth-child(12) { animation-delay: 0.1s; }
+
+/* ========== 倒计时紧急红光效果 ========== */
+
+/* 红光遮罩 */
+.urgent-red-glow {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(239, 68, 68, 0.15) 70%, rgba(239, 68, 68, 0.25) 100%);
+  animation: urgentPulse 1s ease-in-out infinite;
+}
+
+@keyframes urgentPulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 红光进入/离开动画 */
+.urgent-glow-enter-active {
+  transition: opacity 0.3s ease-out;
+}
+
+.urgent-glow-leave-active {
+  transition: opacity 0.5s ease-in;
+}
+
+.urgent-glow-enter-from,
+.urgent-glow-leave-to {
+  opacity: 0;
+}
+
+/* ========== AI 评价按钮微呼吸动画 ========== */
+.animate-pulse-subtle {
+  animation: pulseSubtle 2s ease-in-out infinite;
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    box-shadow: 0 10px 40px rgba(168, 85, 247, 0.4);
+  }
+  50% {
+    box-shadow: 0 10px 50px rgba(168, 85, 247, 0.6), 0 0 20px rgba(236, 72, 153, 0.3);
+  }
+}
+
+/* ========== AI 结果弹窗动画 ========== */
+.ai-result-modal-enter-active {
+  transition: all 0.4s ease-out;
+}
+
+.ai-result-modal-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.ai-result-modal-enter-from {
+  opacity: 0;
+}
+
+.ai-result-modal-enter-from .ai-result-card {
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+}
+
+.ai-result-modal-leave-to {
+  opacity: 0;
+}
+
+.ai-result-modal-leave-to .ai-result-card {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+.ai-result-card {
+  transition: all 0.4s ease-out;
+}
+
+/* 分数数字动画 */
+.score-number {
+  animation: scoreReveal 0.8s ease-out;
+}
+
+@keyframes scoreReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

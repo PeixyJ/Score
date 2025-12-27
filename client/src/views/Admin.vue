@@ -151,25 +151,117 @@
           <!-- 大屏显示设置 -->
           <div class="p-4 bg-gray-50 rounded-lg">
             <h3 class="text-sm font-medium text-gray-700 mb-4">大屏显示设置</h3>
-            <div class="flex items-center justify-between">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm text-gray-600">显示实时大众投票动态</label>
+                  <p class="text-xs text-gray-500 mt-1">在大屏左侧显示实时的大众评委投票记录</p>
+                </div>
+                <button
+                  @click="editingConfig.show_public_vote_realtime = editingConfig.show_public_vote_realtime ? 0 : 1"
+                  :class="[
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    editingConfig.show_public_vote_realtime ? 'bg-blue-500' : 'bg-gray-300'
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                      editingConfig.show_public_vote_realtime ? 'translate-x-6' : 'translate-x-1'
+                    ]"
+                  ></span>
+                </button>
+              </div>
+
+              <!-- 倒计时配置 -->
+              <div class="pt-4 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="text-sm text-gray-600">大屏倒计时器</label>
+                    <p class="text-xs text-gray-500 mt-1">设置大屏显示的倒计时时间（0 表示不显示）</p>
+                  </div>
+                  <div class="flex items-center">
+                    <input
+                      v-model.number="editingConfig.countdown_minutes"
+                      type="number"
+                      min="0"
+                      max="999"
+                      class="w-20 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                    />
+                    <span class="ml-2 text-gray-500">分钟</span>
+                  </div>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    v-for="preset in [0, 3, 5, 10, 15, 30]"
+                    :key="preset"
+                    @click="editingConfig.countdown_minutes = preset"
+                    :class="[
+                      'px-3 py-1 text-xs rounded-full transition-colors',
+                      editingConfig.countdown_minutes === preset
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    ]"
+                  >
+                    {{ preset === 0 ? '关闭' : preset + '分钟' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI 评分设置 -->
+          <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <h3 class="text-sm font-medium text-purple-800 mb-4">AI 评分设置</h3>
+
+            <!-- 启用 AI 评分 -->
+            <div class="flex items-center justify-between mb-4">
               <div>
-                <label class="text-sm text-gray-600">显示实时大众投票动态</label>
-                <p class="text-xs text-gray-500 mt-1">在大屏左侧显示实时的大众评委投票记录</p>
+                <label class="text-sm text-gray-600">启用 AI 评分模式</label>
+                <p class="text-xs text-gray-500 mt-1">在大屏右下角显示 AI 评分面板，支持语音识别实时评分</p>
               </div>
               <button
-                @click="editingConfig.show_public_vote_realtime = editingConfig.show_public_vote_realtime ? 0 : 1"
+                @click="editingConfig.ai_scoring_enabled = editingConfig.ai_scoring_enabled ? 0 : 1"
                 :class="[
                   'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                  editingConfig.show_public_vote_realtime ? 'bg-blue-500' : 'bg-gray-300'
+                  editingConfig.ai_scoring_enabled ? 'bg-purple-500' : 'bg-gray-300'
                 ]"
               >
                 <span
                   :class="[
                     'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                    editingConfig.show_public_vote_realtime ? 'translate-x-6' : 'translate-x-1'
+                    editingConfig.ai_scoring_enabled ? 'translate-x-6' : 'translate-x-1'
                   ]"
                 ></span>
               </button>
+            </div>
+
+            <!-- DeepSeek API Key -->
+            <div class="mb-4">
+              <label class="block text-sm text-gray-600 mb-2">DeepSeek API Key</label>
+              <input
+                v-model="editingConfig.deepseek_api_key"
+                type="password"
+                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                请在 <a href="https://platform.deepseek.com" target="_blank" class="text-purple-600 hover:underline">DeepSeek 平台</a> 获取 API Key
+              </p>
+            </div>
+
+            <!-- AI 角色提示词 -->
+            <div>
+              <label class="block text-sm text-gray-600 mb-2">AI 评委角色设定</label>
+              <textarea
+                v-model="editingConfig.ai_role_prompt"
+                rows="4"
+                placeholder="设定 AI 评委的角色和评分标准..."
+                class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              ></textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                定义 AI 评委的身份和评分偏好，AI 将根据此设定对演讲内容进行评分
+              </p>
             </div>
           </div>
 
@@ -1054,7 +1146,11 @@ const editingConfig = ref({
   professional_weight: 70,
   public_weight: 30,
   default_max_score: 5,
-  show_public_vote_realtime: 1
+  show_public_vote_realtime: 1,
+  ai_scoring_enabled: 0,
+  ai_role_prompt: '你是一位专业的演讲评委，请根据演讲者的表达能力、内容质量、逻辑清晰度等方面进行评分。',
+  deepseek_api_key: '',
+  countdown_minutes: 0
 })
 
 // 评分详情相关

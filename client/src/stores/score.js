@@ -10,11 +10,22 @@ export const useScoreStore = defineStore('score', () => {
   const dimensions = ref([])
   const judges = ref([])
   const tracks = ref([])
-  const scoreConfig = ref({ professional_weight: 70, public_weight: 30, default_max_score: 5, show_public_vote_realtime: 1 })
+  const scoreConfig = ref({
+    professional_weight: 70,
+    public_weight: 30,
+    default_max_score: 5,
+    show_public_vote_realtime: 1,
+    ai_scoring_enabled: 0,
+    ai_role_prompt: '',
+    deepseek_api_key: '',
+    countdown_minutes: 0
+  })
   const publicVoteActivities = ref([]) // 实时大众投票记录
   const MAX_VOTE_ACTIVITIES = 10 // 最多保留10条记录
   const currentJudge = ref(null)
   const onlineStatus = ref({ judges: [], publicVoterCount: 0 })
+  const aiScoreActivities = ref([]) // AI 评分记录
+  const MAX_AI_SCORE_ACTIVITIES = 10 // 最多保留10条 AI 评分记录
 
   // 初始化 Socket 连接
   function initSocket() {
@@ -54,6 +65,15 @@ export const useScoreStore = defineStore('score', () => {
       // 只保留最新的N条
       if (publicVoteActivities.value.length > MAX_VOTE_ACTIVITIES) {
         publicVoteActivities.value.pop()
+      }
+    })
+
+    // 监听 AI 评分更新
+    socket.value.on('aiScoreUpdate', (data) => {
+      aiScoreActivities.value.unshift(data)
+      // 只保留最新的N条
+      if (aiScoreActivities.value.length > MAX_AI_SCORE_ACTIVITIES) {
+        aiScoreActivities.value.pop()
       }
     })
   }
@@ -169,6 +189,23 @@ export const useScoreStore = defineStore('score', () => {
     return res.data
   }
 
+  // 提交 AI 评分
+  async function submitAIScore(contestantId, speechText, track) {
+    const res = await axios.post('/api/ai-scores/evaluate', {
+      contestant_id: contestantId,
+      speech_text: speechText,
+      track
+    })
+    return res.data
+  }
+
+  // 获取最新的 AI 评分记录
+  async function fetchLatestAIScores(limit = 10) {
+    const res = await axios.get(`/api/ai-scores/latest?limit=${limit}`)
+    aiScoreActivities.value = res.data
+    return res.data
+  }
+
   return {
     socket,
     rankings,
@@ -180,6 +217,7 @@ export const useScoreStore = defineStore('score', () => {
     publicVoteActivities,
     currentJudge,
     onlineStatus,
+    aiScoreActivities,
     initSocket,
     requestRankings,
     notifyScoreUpdate,
@@ -195,6 +233,8 @@ export const useScoreStore = defineStore('score', () => {
     submitScore,
     getMyScores,
     reportJudgeOnline,
-    reportJudgeOffline
+    reportJudgeOffline,
+    submitAIScore,
+    fetchLatestAIScores
   }
 })

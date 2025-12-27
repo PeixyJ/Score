@@ -120,7 +120,24 @@ async function initDatabase() {
       public_weight REAL DEFAULT 30,
       default_max_score INTEGER DEFAULT 5,
       show_public_vote_realtime INTEGER DEFAULT 1,
+      ai_scoring_enabled INTEGER DEFAULT 0,
+      ai_role_prompt TEXT DEFAULT '你是一位专业的演讲评委，请根据演讲者的表达能力、内容质量、逻辑清晰度等方面进行评分。',
+      deepseek_api_key TEXT DEFAULT '',
+      countdown_minutes INTEGER DEFAULT 0,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // AI 评分记录表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_scores (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contestant_id INTEGER NOT NULL,
+      speech_text TEXT NOT NULL,
+      score REAL NOT NULL,
+      feedback TEXT,
+      dimension_scores TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -129,6 +146,32 @@ async function initDatabase() {
     db.run('SELECT show_public_vote_realtime FROM score_config LIMIT 1');
   } catch (e) {
     db.run('ALTER TABLE score_config ADD COLUMN show_public_vote_realtime INTEGER DEFAULT 1');
+  }
+
+  // 添加 AI 评分相关字段（兼容旧数据库）
+  try {
+    db.run('SELECT ai_scoring_enabled FROM score_config LIMIT 1');
+  } catch (e) {
+    db.run('ALTER TABLE score_config ADD COLUMN ai_scoring_enabled INTEGER DEFAULT 0');
+  }
+
+  try {
+    db.run('SELECT ai_role_prompt FROM score_config LIMIT 1');
+  } catch (e) {
+    db.run("ALTER TABLE score_config ADD COLUMN ai_role_prompt TEXT DEFAULT '你是一位专业的演讲评委，请根据演讲者的表达能力、内容质量、逻辑清晰度等方面进行评分。'");
+  }
+
+  try {
+    db.run('SELECT deepseek_api_key FROM score_config LIMIT 1');
+  } catch (e) {
+    db.run("ALTER TABLE score_config ADD COLUMN deepseek_api_key TEXT DEFAULT ''");
+  }
+
+  // 添加 countdown_minutes 字段（兼容旧数据库）
+  try {
+    db.run('SELECT countdown_minutes FROM score_config LIMIT 1');
+  } catch (e) {
+    db.run('ALTER TABLE score_config ADD COLUMN countdown_minutes INTEGER DEFAULT 0');
   }
 
   // 初始化默认配置（如果没有的话）
